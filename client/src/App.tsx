@@ -20,11 +20,31 @@ import AIAssistant from "./pages/AIAssistant";
 import Accounts from "./pages/Accounts";
 import AccountForm from "./pages/AccountForm";
 import MyTasks from "./pages/MyTasks";
+import Login from "./pages/Login";
+import { useSupabaseAuth } from "./hooks/useSupabaseAuth";
+import { Redirect } from "wouter";
+
+function ProtectedRoute({ component: Component, ...rest }: any) {
+  const { isAuthenticated, loading } = useSupabaseAuth();
+
+  if (loading) {
+    return <div className="min-h-screen flex items-center justify-center">로딩 중...</div>;
+  }
+
+  if (!isAuthenticated) {
+    return <Redirect to="/login" />;
+  }
+
+  return <Component {...rest} />;
+}
 
 function Router() {
   return (
     <Switch>
-      <Route path={"/"} component={Dashboard} />
+      <Route path={"/login"} component={Login} />
+      <Route path={"/"}>
+        {() => <ProtectedRoute component={Dashboard} />}
+      </Route>
       <Route path={"/home"} component={Home} />
       <Route path={"/my-tasks"} component={MyTasks} />
       <Route path={"/admin"} component={Admin} />
