@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
+import PageLayout from "@/components/PageLayout";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useSupabaseAuth } from "@/hooks/useSupabaseAuth";
@@ -126,7 +127,7 @@ export default function Projects() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#F0F4F8] to-[#E1E7EF] p-4 md:p-6">
+    <PageLayout title="프로젝트 관리">
       <div className="max-w-7xl mx-auto">
         {/* 헤더 */}
         <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-6 gap-4">
@@ -343,6 +344,6 @@ export default function Projects() {
           </Card>
         )}
       </div>
-    </div>
+    </PageLayout>
   );
 }

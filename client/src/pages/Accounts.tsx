@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import PageLayout from "@/components/PageLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Link } from "wouter";
 import { KeyRound } from "lucide-react";

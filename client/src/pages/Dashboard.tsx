@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { useSupabaseAuth } from "@/hooks/useSupabaseAuth";
+import PageLayout from "@/components/PageLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -390,7 +391,7 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#F0F4F8] to-[#E1E7EF] p-4 md:p-6">
+    <PageLayout showBackButton={false}>
       <div className="max-w-7xl mx-auto">
         {/* 헤더 */}
         <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-6 gap-4">
@@ -408,57 +409,65 @@ export default function Dashboard() {
 
         {/* 프로젝트 KPI 카드 */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-          <Card className="border-l-4 border-l-blue-500 shadow-md hover:shadow-lg transition-shadow">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">전체 프로젝트</CardTitle>
-              <FolderKanban className="h-5 w-5 text-blue-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-[#2C3E50]">{totalProjects}</div>
-              <p className="text-xs text-gray-500 mt-1">
-                진행 중 <span className="font-semibold text-blue-600">{inProgressProjects}건</span>
-              </p>
-            </CardContent>
-          </Card>
+          <Link href="/projects">
+            <Card className="border-l-4 border-l-blue-500 shadow-md hover:shadow-lg transition-shadow cursor-pointer">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium text-gray-600">전체 프로젝트</CardTitle>
+                <FolderKanban className="h-5 w-5 text-blue-500" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold text-[#2C3E50]">{totalProjects}</div>
+                <p className="text-xs text-gray-500 mt-1">
+                  진행 중 <span className="font-semibold text-blue-600">{inProgressProjects}건</span>
+                </p>
+              </CardContent>
+            </Card>
+          </Link>
 
-          <Card className="border-l-4 border-l-green-500 shadow-md hover:shadow-lg transition-shadow">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">완료된 프로젝트</CardTitle>
-              <CheckCircle className="h-5 w-5 text-green-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-green-600">{completedProjects}</div>
-              <p className="text-xs text-gray-500 mt-1">
-                완료율 <span className="font-semibold text-green-600">{totalProjects > 0 ? Math.round((completedProjects / totalProjects) * 100) : 0}%</span>
-              </p>
-            </CardContent>
-          </Card>
+          <Link href="/projects?status=completed">
+            <Card className="border-l-4 border-l-green-500 shadow-md hover:shadow-lg transition-shadow cursor-pointer">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium text-gray-600">완료된 프로젝트</CardTitle>
+                <CheckCircle className="h-5 w-5 text-green-500" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold text-green-600">{completedProjects}</div>
+                <p className="text-xs text-gray-500 mt-1">
+                  완료율 <span className="font-semibold text-green-600">{totalProjects > 0 ? Math.round((completedProjects / totalProjects) * 100) : 0}%</span>
+                </p>
+              </CardContent>
+            </Card>
+          </Link>
 
-          <Card className="border-l-4 border-l-red-500 shadow-md hover:shadow-lg transition-shadow">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">긴급 프로젝트</CardTitle>
-              <AlertTriangle className="h-5 w-5 text-red-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-red-600">{urgentProjects}</div>
-              <p className="text-xs text-gray-500 mt-1">
-                높음 <span className="font-semibold text-orange-600">{highProjects}건</span>
-              </p>
-            </CardContent>
-          </Card>
+          <Link href="/projects?priority=urgent">
+            <Card className="border-l-4 border-l-red-500 shadow-md hover:shadow-lg transition-shadow cursor-pointer">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium text-gray-600">긴급 프로젝트</CardTitle>
+                <AlertTriangle className="h-5 w-5 text-red-500" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold text-red-600">{urgentProjects}</div>
+                <p className="text-xs text-gray-500 mt-1">
+                  높음 <span className="font-semibold text-orange-600">{highProjects}건</span>
+                </p>
+              </CardContent>
+            </Card>
+          </Link>
 
-          <Card className="border-l-4 border-l-orange-500 shadow-md hover:shadow-lg transition-shadow">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">지연 프로젝트</CardTitle>
-              <Clock className="h-5 w-5 text-orange-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-orange-600">{overdueProjects}</div>
-              <p className="text-xs text-gray-500 mt-1">
-                목표일 초과
-              </p>
-            </CardContent>
-          </Card>
+          <Link href="/projects?overdue=true">
+            <Card className="border-l-4 border-l-orange-500 shadow-md hover:shadow-lg transition-shadow cursor-pointer">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium text-gray-600">지연 프로젝트</CardTitle>
+                <Clock className="h-5 w-5 text-orange-500" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold text-orange-600">{overdueProjects}</div>
+                <p className="text-xs text-gray-500 mt-1">
+                  목표일 초과
+                </p>
+              </CardContent>
+            </Card>
+          </Link>
         </div>
 
         {/* 프로젝트 차트 영역 */}
@@ -889,6 +898,6 @@ export default function Dashboard() {
           </Tabs>
         </div>
       </div>
-    </div>
+    </PageLayout>
   );
 }
