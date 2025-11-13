@@ -1,15 +1,35 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
+import { useSupabaseAuth } from "@/hooks/useSupabaseAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Link } from "wouter";
-import { Package, Plus, TrendingUp, BarChart3 } from "lucide-react";
-import { RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, Legend, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Package, Plus, TrendingUp, BarChart3, Edit, Trash2, Download, History, User } from "lucide-react";
+import { RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, Legend, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, LineChart, Line } from 'recharts';
+import * as XLSX from 'xlsx';
 
 // 샘플 유형별 평가 항목
 const EVALUATION_CRITERIA = {
@@ -42,18 +62,23 @@ const SAMPLE_TYPES = {
 };
 
 export default function Samples() {
+  const { user } = useSupabaseAuth();
   const [selectedType, setSelectedType] = useState<keyof typeof EVALUATION_CRITERIA>('ampoule');
   const [showEvaluationForm, setShowEvaluationForm] = useState(false);
+  const [editingEvaluation, setEditingEvaluation] = useState<any>(null);
+  const [deletingEvaluation, setDeletingEvaluation] = useState<any>(null);
+  const [viewingHistory, setViewingHistory] = useState<string | null>(null);
   const [sampleName, setSampleName] = useState('');
   const [brand, setBrand] = useState('howpapa');
+  const [comment, setComment] = useState('');
   const [scores, setScores] = useState<Record<string, number>>({});
   const queryClient = useQueryClient();
 
-  const { data: samples = [], isLoading } = useQuery({
-    queryKey: ['samples'],
+  const { data: evaluations = [], isLoading } = useQuery({
+    queryKey: ['sample_evaluations'],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('samples')
+        .from('sample_evaluations')
         .select('*')
         .order('created_at', { ascending: false });
       if (error) throw error;
@@ -61,23 +86,60 @@ export default function Samples() {
     }
   });
 
-  const createSampleMutation = useMutation({
-    mutationFn: async (newSample: any) => {
+  const createEvaluationMutation = useMutation({
+    mutationFn: async (newEvaluation: any) => {
       const { data, error } = await supabase
-        .from('samples')
-        .insert([newSample])
+        .from('sample_evaluations')
+        .insert([newEvaluation])
         .select()
         .single();
       if (error) throw error;
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['samples'] });
-      setShowEvaluationForm(false);
-      setSampleName('');
-      setScores({});
+      queryClient.invalidateQueries({ queryKey: ['sample_evaluations'] });
+      resetForm();
     }
   });
+
+  const updateEvaluationMutation = useMutation({
+    mutationFn: async ({ id, updates }: { id: string; updates: any }) => {
+      const { data, error } = await supabase
+        .from('sample_evaluations')
+        .update(updates)
+        .eq('id', id)
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sample_evaluations'] });
+      resetForm();
+    }
+  });
+
+  const deleteEvaluationMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from('sample_evaluations')
+        .delete()
+        .eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sample_evaluations'] });
+      setDeletingEvaluation(null);
+    }
+  });
+
+  const resetForm = () => {
+    setShowEvaluationForm(false);
+    setEditingEvaluation(null);
+    setSampleName('');
+    setComment('');
+    setScores({});
+  };
 
   const handleScoreChange = (key: string, value: number) => {
     setScores(prev => ({ ...prev, [key]: Math.min(Math.max(value, 0), 5) }));
@@ -88,33 +150,138 @@ export default function Samples() {
     const totalScore = criteria.reduce((sum, item) => sum + (scores[item.key] || 0), 0);
     const maxScore = criteria.reduce((sum, item) => sum + item.max, 0);
 
-    createSampleMutation.mutate({
-      name: sampleName,
-      type: selectedType,
+    const evaluationData = {
+      sample_name: sampleName,
+      sample_type: selectedType,
       brand: brand,
       scores: scores,
       total_score: totalScore,
       max_score: maxScore,
-    });
+      evaluator_id: user?.id,
+      evaluator_name: user?.email || '익명',
+      comment: comment || null,
+    };
+
+    if (editingEvaluation) {
+      updateEvaluationMutation.mutate({
+        id: editingEvaluation.id,
+        updates: { ...evaluationData, updated_at: new Date().toISOString() }
+      });
+    } else {
+      createEvaluationMutation.mutate(evaluationData);
+    }
   };
 
-  const filteredSamples = samples.filter((sample: any) => sample.type === selectedType);
+  const handleEdit = (evaluation: any) => {
+    setEditingEvaluation(evaluation);
+    setSampleName(evaluation.sample_name);
+    setBrand(evaluation.brand);
+    setComment(evaluation.comment || '');
+    setScores(evaluation.scores);
+    setSelectedType(evaluation.sample_type);
+    setShowEvaluationForm(true);
+  };
 
-  const getRadarData = (sample: any) => {
-    const criteria = EVALUATION_CRITERIA[sample.type as keyof typeof EVALUATION_CRITERIA];
+  const handleDelete = (evaluation: any) => {
+    setDeletingEvaluation(evaluation);
+  };
+
+  const confirmDelete = () => {
+    if (deletingEvaluation) {
+      deleteEvaluationMutation.mutate(deletingEvaluation.id);
+    }
+  };
+
+  const filteredEvaluations = evaluations.filter((evaluation: any) => evaluation.sample_type === selectedType);
+
+  // 샘플명별로 그룹화하여 평균 계산
+  const groupedBySampleName = filteredEvaluations.reduce((acc: any, evaluation: any) => {
+    const name = evaluation.sample_name;
+    if (!acc[name]) {
+      acc[name] = [];
+    }
+    acc[name].push(evaluation);
+    return acc;
+  }, {});
+
+  const averageScores = Object.entries(groupedBySampleName).map(([name, evals]: [string, any]) => {
+    const criteria = EVALUATION_CRITERIA[selectedType];
+    const avgScores: any = {};
+    
+    criteria.forEach(item => {
+      const sum = evals.reduce((s: number, e: any) => s + (e.scores[item.key] || 0), 0);
+      avgScores[item.key] = sum / evals.length;
+    });
+
+    const totalScore = evals.reduce((s: number, e: any) => s + e.total_score, 0) / evals.length;
+    const maxScore = evals[0].max_score;
+
+    return {
+      name,
+      avgScores,
+      totalScore,
+      maxScore,
+      count: evals.length,
+      brand: evals[0].brand,
+    };
+  });
+
+  const getRadarData = (evaluation: any) => {
+    const criteria = EVALUATION_CRITERIA[evaluation.sample_type as keyof typeof EVALUATION_CRITERIA];
     return criteria.map(item => ({
       subject: item.label,
-      score: sample.scores?.[item.key] || 0,
+      score: evaluation.scores?.[item.key] || 0,
       fullMark: item.max,
     }));
   };
 
   const getBarChartData = () => {
-    return filteredSamples.map((sample: any) => ({
-      name: sample.name,
-      score: sample.total_score,
-      percentage: Math.round((sample.total_score / sample.max_score) * 100),
+    return averageScores.map((item: any) => ({
+      name: item.name,
+      score: Math.round(item.totalScore * 10) / 10,
+      percentage: Math.round((item.totalScore / item.maxScore) * 100),
     }));
+  };
+
+  const getHistoryData = (sampleName: string) => {
+    const history = evaluations
+      .filter((e: any) => e.sample_name === sampleName && e.sample_type === selectedType)
+      .sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+
+    return history.map((e: any, index: number) => ({
+      version: `v${index + 1}`,
+      score: e.total_score,
+      date: new Date(e.created_at).toLocaleDateString(),
+      evaluator: e.evaluator_name,
+    }));
+  };
+
+  const exportToExcel = () => {
+    const exportData = filteredEvaluations.map((evaluation: any) => {
+      const criteria = EVALUATION_CRITERIA[evaluation.sample_type as keyof typeof EVALUATION_CRITERIA];
+      const row: any = {
+        '샘플명': evaluation.sample_name,
+        '브랜드': evaluation.brand === 'howpapa' ? '하우파파' : '누씨오',
+        '유형': SAMPLE_TYPES[evaluation.sample_type as keyof typeof SAMPLE_TYPES].label,
+        '평가자': evaluation.evaluator_name,
+        '평가일': new Date(evaluation.created_at).toLocaleDateString(),
+        '총점': evaluation.total_score,
+        '만점': evaluation.max_score,
+        '백분율': `${Math.round((evaluation.total_score / evaluation.max_score) * 100)}%`,
+        '코멘트': evaluation.comment || '',
+      };
+
+      criteria.forEach(item => {
+        row[item.label] = evaluation.scores[item.key] || 0;
+      });
+
+      return row;
+    });
+
+    const ws = XLSX.utils.json_to_sheet(exportData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, '샘플 평가');
+    XLSX.writeFile(wb, `샘플평가_${SAMPLE_TYPES[selectedType].label}_${new Date().toLocaleDateString()}.xlsx`);
   };
 
   return (
@@ -126,22 +293,40 @@ export default function Samples() {
             <h1 className="text-3xl font-bold text-[#2C3E50] mb-2">샘플 평가 관리</h1>
             <p className="text-gray-600">제품 샘플을 평가하고 결과를 분석합니다</p>
           </div>
-          <Button 
-            onClick={() => setShowEvaluationForm(!showEvaluationForm)}
-            className="bg-[#93C572] hover:bg-[#7FB05B] shadow-md"
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            새 평가 등록
-          </Button>
+          <div className="flex gap-2">
+            <Button 
+              onClick={exportToExcel}
+              variant="outline"
+              className="shadow-md"
+              disabled={filteredEvaluations.length === 0}
+            >
+              <Download className="w-4 h-4 mr-2" />
+              엑셀 내보내기
+            </Button>
+            <Button 
+              onClick={() => {
+                resetForm();
+                setShowEvaluationForm(true);
+              }}
+              className="bg-[#93C572] hover:bg-[#7FB05B] shadow-md"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              새 평가 등록
+            </Button>
+          </div>
         </div>
 
-        {/* 평가 등록 폼 */}
-        {showEvaluationForm && (
-          <Card className="mb-6 bg-white shadow-lg">
-            <CardHeader>
-              <CardTitle>샘플 평가 등록</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
+        {/* 평가 등록/수정 폼 */}
+        <Dialog open={showEvaluationForm} onOpenChange={(open) => !open && resetForm()}>
+          <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>{editingEvaluation ? '평가 수정' : '샘플 평가 등록'}</DialogTitle>
+              <DialogDescription>
+                샘플 정보와 평가 점수를 입력해주세요.
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <Label>샘플명</Label>
@@ -168,12 +353,23 @@ export default function Samples() {
                     value={selectedType}
                     onChange={(e) => setSelectedType(e.target.value as keyof typeof EVALUATION_CRITERIA)}
                     className="w-full h-10 px-3 border rounded-md"
+                    disabled={!!editingEvaluation}
                   >
                     {Object.entries(SAMPLE_TYPES).map(([key, { label }]) => (
                       <option key={key} value={key}>{label}</option>
                     ))}
                   </select>
                 </div>
+              </div>
+
+              <div>
+                <Label>코멘트</Label>
+                <Textarea
+                  value={comment}
+                  onChange={(e) => setComment(e.target.value)}
+                  placeholder="평가에 대한 추가 의견을 입력하세요..."
+                  rows={3}
+                />
               </div>
 
               <div className="border-t pt-4">
@@ -194,22 +390,85 @@ export default function Samples() {
                   ))}
                 </div>
               </div>
+            </div>
 
-              <div className="flex gap-2 justify-end">
-                <Button variant="outline" onClick={() => setShowEvaluationForm(false)}>
-                  취소
-                </Button>
-                <Button 
-                  onClick={handleSubmit}
-                  disabled={!sampleName || Object.keys(scores).length === 0}
-                  className="bg-[#93C572] hover:bg-[#7FB05B]"
-                >
-                  등록
-                </Button>
+            <DialogFooter>
+              <Button variant="outline" onClick={resetForm}>
+                취소
+              </Button>
+              <Button 
+                onClick={handleSubmit}
+                disabled={!sampleName || Object.keys(scores).length === 0}
+                className="bg-[#93C572] hover:bg-[#7FB05B]"
+              >
+                {editingEvaluation ? '수정' : '등록'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* 삭제 확인 다이얼로그 */}
+        <AlertDialog open={!!deletingEvaluation} onOpenChange={() => setDeletingEvaluation(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>평가 삭제</AlertDialogTitle>
+              <AlertDialogDescription>
+                정말로 이 평가를 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>취소</AlertDialogCancel>
+              <AlertDialogAction onClick={confirmDelete} className="bg-red-600 hover:bg-red-700">
+                삭제
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* 히스토리 다이얼로그 */}
+        <Dialog open={!!viewingHistory} onOpenChange={() => setViewingHistory(null)}>
+          <DialogContent className="max-w-4xl">
+            <DialogHeader>
+              <DialogTitle>평가 히스토리: {viewingHistory}</DialogTitle>
+              <DialogDescription>
+                시간에 따른 평가 점수 변화를 확인할 수 있습니다.
+              </DialogDescription>
+            </DialogHeader>
+            
+            {viewingHistory && (
+              <div className="space-y-4">
+                <ResponsiveContainer width="100%" height={300}>
+                  <LineChart data={getHistoryData(viewingHistory)}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="version" />
+                    <YAxis />
+                    <Tooltip />
+                    <Legend />
+                    <Line type="monotone" dataKey="score" stroke="#93C572" strokeWidth={2} />
+                  </LineChart>
+                </ResponsiveContainer>
+
+                <div className="space-y-2">
+                  {getHistoryData(viewingHistory).map((item: any, index: number) => (
+                    <div key={index} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <Badge>{item.version}</Badge>
+                        <span className="text-sm text-gray-600">{item.date}</span>
+                        <div className="flex items-center gap-1 text-sm text-gray-500">
+                          <User className="w-3 h-3" />
+                          {item.evaluator}
+                        </div>
+                      </div>
+                      <div className="text-lg font-semibold text-[#93C572]">
+                        {item.score}점
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </CardContent>
-          </Card>
-        )}
+            )}
+          </DialogContent>
+        </Dialog>
 
         {/* 샘플 유형 탭 */}
         <Tabs value={selectedType} onValueChange={(value) => setSelectedType(value as keyof typeof EVALUATION_CRITERIA)}>
@@ -221,13 +480,16 @@ export default function Samples() {
 
           {Object.keys(SAMPLE_TYPES).map((type) => (
             <TabsContent key={type} value={type}>
-              {/* 총점 비교 그래프 */}
-              {filteredSamples.length > 0 && (
+              {/* 평균 점수 비교 그래프 */}
+              {averageScores.length > 0 && (
                 <Card className="mb-6 bg-white shadow-sm">
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                       <BarChart3 className="w-5 h-5" />
-                      총점 비교
+                      평균 점수 비교
+                      <span className="text-sm font-normal text-gray-500 ml-2">
+                        (여러 평가자의 평균)
+                      </span>
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
@@ -246,7 +508,7 @@ export default function Samples() {
 
               {/* 샘플 목록 */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {filteredSamples.length === 0 ? (
+                {filteredEvaluations.length === 0 ? (
                   <Card className="col-span-full">
                     <CardContent className="text-center py-12">
                       <Package className="w-16 h-16 text-gray-400 mx-auto mb-4" />
@@ -257,43 +519,82 @@ export default function Samples() {
                     </CardContent>
                   </Card>
                 ) : (
-                  filteredSamples.map((sample: any) => (
-                    <Card key={sample.id} className="bg-white shadow-sm hover:shadow-md transition-shadow">
+                  filteredEvaluations.map((evaluation: any) => (
+                    <Card key={evaluation.id} className="bg-white shadow-sm hover:shadow-md transition-shadow">
                       <CardHeader>
                         <div className="flex justify-between items-start">
-                          <div>
-                            <CardTitle className="text-lg">{sample.name}</CardTitle>
-                            <div className="flex gap-2 mt-2">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-2">
+                              <CardTitle className="text-lg">{evaluation.sample_name}</CardTitle>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => setViewingHistory(evaluation.sample_name)}
+                                className="h-6 px-2"
+                              >
+                                <History className="w-3 h-3" />
+                              </Button>
+                            </div>
+                            <div className="flex gap-2 flex-wrap">
                               <Badge variant="outline">
-                                {sample.brand === 'howpapa' ? '하우파파' : '누씨오'}
+                                {evaluation.brand === 'howpapa' ? '하우파파' : '누씨오'}
                               </Badge>
-                              <Badge className={SAMPLE_TYPES[sample.type as keyof typeof SAMPLE_TYPES].color}>
-                                {SAMPLE_TYPES[sample.type as keyof typeof SAMPLE_TYPES].label}
+                              <Badge className={SAMPLE_TYPES[evaluation.sample_type as keyof typeof SAMPLE_TYPES].color}>
+                                {SAMPLE_TYPES[evaluation.sample_type as keyof typeof SAMPLE_TYPES].label}
+                              </Badge>
+                              <Badge variant="outline" className="flex items-center gap-1">
+                                <User className="w-3 h-3" />
+                                {evaluation.evaluator_name}
                               </Badge>
                             </div>
+                            {evaluation.comment && (
+                              <p className="text-sm text-gray-600 mt-2 italic">
+                                "{evaluation.comment}"
+                              </p>
+                            )}
                           </div>
-                          <div className="text-right">
+                          <div className="text-right ml-4">
                             <div className="text-3xl font-bold text-[#93C572]">
-                              {sample.total_score}
+                              {evaluation.total_score}
                             </div>
                             <div className="text-sm text-gray-500">
-                              / {sample.max_score}점
+                              / {evaluation.max_score}점
                             </div>
                             <div className="text-sm font-semibold text-blue-600 mt-1">
-                              {Math.round((sample.total_score / sample.max_score) * 100)}%
+                              {Math.round((evaluation.total_score / evaluation.max_score) * 100)}%
                             </div>
                           </div>
+                        </div>
+                        <div className="flex gap-2 mt-3">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleEdit(evaluation)}
+                            className="flex-1"
+                          >
+                            <Edit className="w-3 h-3 mr-1" />
+                            수정
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleDelete(evaluation)}
+                            className="flex-1 text-red-600 hover:text-red-700 hover:bg-red-50"
+                          >
+                            <Trash2 className="w-3 h-3 mr-1" />
+                            삭제
+                          </Button>
                         </div>
                       </CardHeader>
                       <CardContent>
                         {/* 레이더 차트 */}
                         <ResponsiveContainer width="100%" height={300}>
-                          <RadarChart data={getRadarData(sample)}>
+                          <RadarChart data={getRadarData(evaluation)}>
                             <PolarGrid />
                             <PolarAngleAxis dataKey="subject" />
                             <PolarRadiusAxis angle={90} domain={[0, 5]} />
                             <Radar
-                              name={sample.name}
+                              name={evaluation.sample_name}
                               dataKey="score"
                               stroke="#93C572"
                               fill="#93C572"
@@ -305,22 +606,26 @@ export default function Samples() {
 
                         {/* 상세 점수 */}
                         <div className="mt-4 space-y-2">
-                          {EVALUATION_CRITERIA[sample.type as keyof typeof EVALUATION_CRITERIA].map((item) => (
+                          {EVALUATION_CRITERIA[evaluation.sample_type as keyof typeof EVALUATION_CRITERIA].map((item) => (
                             <div key={item.key} className="flex justify-between items-center">
                               <span className="text-sm text-gray-600">{item.label}</span>
                               <div className="flex items-center gap-2">
                                 <div className="w-32 bg-gray-200 rounded-full h-2">
                                   <div
                                     className="bg-[#93C572] h-2 rounded-full"
-                                    style={{ width: `${((sample.scores?.[item.key] || 0) / item.max) * 100}%` }}
+                                    style={{ width: `${((evaluation.scores?.[item.key] || 0) / item.max) * 100}%` }}
                                   />
                                 </div>
                                 <span className="text-sm font-semibold w-12 text-right">
-                                  {sample.scores?.[item.key] || 0}/{item.max}
+                                  {evaluation.scores?.[item.key] || 0}/{item.max}
                                 </span>
                               </div>
                             </div>
                           ))}
+                        </div>
+
+                        <div className="mt-4 pt-4 border-t text-xs text-gray-500">
+                          평가일: {new Date(evaluation.created_at).toLocaleString()}
                         </div>
                       </CardContent>
                     </Card>
