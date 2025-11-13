@@ -28,8 +28,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Package, Plus, TrendingUp, BarChart3, Edit, Trash2, Download, History, User } from "lucide-react";
-import { RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, Legend, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, LineChart, Line } from 'recharts';
+import { Package, Plus, TrendingUp, BarChart3, Edit, Trash2, Download, History, User, Users } from "lucide-react";
+import EvaluatorManager from "@/components/EvaluatorManager";
+import { RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, Legend, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, LineChart, Line, ComposedChart } from 'recharts';
 import * as XLSX from 'xlsx';
 
 // 샘플 유형별 평가 항목
@@ -57,21 +58,24 @@ const EVALUATION_CRITERIA = {
 };
 
 const SAMPLE_TYPES = {
-  ampoule: { label: '앰플', color: 'bg-purple-100 text-purple-700' },
-  toner_pad: { label: '토너패드', color: 'bg-blue-100 text-blue-700' },
-  cream_lotion: { label: '크림&로션', color: 'bg-green-100 text-green-700' },
+  ampoule: { label: '앰플', color: 'bg-purple-100 text-purple-700', chartColor: '#9333ea' },
+  toner_pad: { label: '토너패드', color: 'bg-blue-100 text-blue-700', chartColor: '#3b82f6' },
+  cream_lotion: { label: '크림&로션', color: 'bg-green-100 text-green-700', chartColor: '#22c55e' },
 };
 
 export default function Samples() {
   const { user } = useSupabaseAuth();
-  const [selectedType, setSelectedType] = useState<keyof typeof EVALUATION_CRITERIA>('ampoule');
+  const [selectedType, setSelectedType] = useState<keyof typeof EVALUATION_CRITERIA | 'all'>('all');
   const [showEvaluationForm, setShowEvaluationForm] = useState(false);
+  const [showEvaluatorForm, setShowEvaluatorForm] = useState(false);
   const [editingEvaluation, setEditingEvaluation] = useState<any>(null);
   const [deletingEvaluation, setDeletingEvaluation] = useState<any>(null);
-  const [viewingHistory, setViewingHistory] = useState<string | null>(null);
+  const [viewingComparison, setViewingComparison] = useState<string | null>(null);
   const [sampleName, setSampleName] = useState('');
   const [brand, setBrand] = useState('howpapa');
   const [comment, setComment] = useState('');
+  const [evaluatorName, setEvaluatorName] = useState('');
+  const [evaluatorEmail, setEvaluatorEmail] = useState('');
   const [scores, setScores] = useState<Record<string, number>>({});
   const queryClient = useQueryClient();
 
@@ -82,6 +86,18 @@ export default function Samples() {
         .from('sample_evaluations')
         .select('*')
         .order('created_at', { ascending: false });
+      if (error) throw error;
+      return data;
+    }
+  });
+
+  const { data: evaluators = [] } = useQuery({
+    queryKey: ['evaluators'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('evaluators')
+        .select('*')
+        .order('name');
       if (error) throw error;
       return data;
     }
@@ -100,6 +116,24 @@ export default function Samples() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['sample_evaluations'] });
       resetForm();
+    }
+  });
+
+  const createEvaluatorMutation = useMutation({
+    mutationFn: async (newEvaluator: any) => {
+      const { data, error } = await supabase
+        .from('evaluators')
+        .insert([newEvaluator])
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['evaluators'] });
+      setShowEvaluatorForm(false);
+      setEvaluatorName('');
+      setEvaluatorEmail('');
     }
   });
 
@@ -147,13 +181,14 @@ export default function Samples() {
   };
 
   const handleSubmit = () => {
-    const criteria = EVALUATION_CRITERIA[selectedType];
+    const type = selectedType === 'all' ? 'ampoule' : selectedType;
+    const criteria = EVALUATION_CRITERIA[type as keyof typeof EVALUATION_CRITERIA];
     const totalScore = criteria.reduce((sum, item) => sum + (scores[item.key] || 0), 0);
     const maxScore = criteria.reduce((sum, item) => sum + item.max, 0);
 
     const evaluationData = {
       sample_name: sampleName,
-      sample_type: selectedType,
+      sample_type: type,
       brand: brand,
       scores: scores,
       total_score: totalScore,
@@ -171,6 +206,13 @@ export default function Samples() {
     } else {
       createEvaluationMutation.mutate(evaluationData);
     }
+  };
+
+  const handleEvaluatorSubmit = () => {
+    createEvaluatorMutation.mutate({
+      name: evaluatorName,
+      email: evaluatorEmail,
+    });
   };
 
   const handleEdit = (evaluation: any) => {
@@ -193,9 +235,11 @@ export default function Samples() {
     }
   };
 
-  const filteredEvaluations = evaluations.filter((evaluation: any) => evaluation.sample_type === selectedType);
+  const filteredEvaluations = selectedType === 'all' 
+    ? evaluations 
+    : evaluations.filter((evaluation: any) => evaluation.sample_type === selectedType);
 
-  // 샘플명별로 그룹화하여 평균 계산
+  // 샘플명별로 그룹화
   const groupedBySampleName = filteredEvaluations.reduce((acc: any, evaluation: any) => {
     const name = evaluation.sample_name;
     if (!acc[name]) {
@@ -205,8 +249,10 @@ export default function Samples() {
     return acc;
   }, {});
 
+  // 평균 점수 계산
   const averageScores = Object.entries(groupedBySampleName).map(([name, evals]: [string, any]) => {
-    const criteria = EVALUATION_CRITERIA[selectedType];
+    const sampleType = evals[0].sample_type;
+    const criteria = EVALUATION_CRITERIA[sampleType as keyof typeof EVALUATION_CRITERIA];
     const avgScores: any = {};
     
     criteria.forEach(item => {
@@ -219,11 +265,13 @@ export default function Samples() {
 
     return {
       name,
+      sampleType,
       avgScores,
       totalScore,
       maxScore,
       count: evals.length,
       brand: evals[0].brand,
+      evaluations: evals,
     };
   });
 
@@ -236,25 +284,20 @@ export default function Samples() {
     }));
   };
 
-  const getBarChartData = () => {
-    return averageScores.map((item: any) => ({
-      name: item.name,
-      score: Math.round(item.totalScore * 10) / 10,
-      percentage: Math.round((item.totalScore / item.maxScore) * 100),
-    }));
-  };
+  const getComparisonData = (sampleName: string) => {
+    const sampleEvals = groupedBySampleName[sampleName];
+    if (!sampleEvals || sampleEvals.length === 0) return [];
 
-  const getHistoryData = (sampleName: string) => {
-    const history = evaluations
-      .filter((e: any) => e.sample_name === sampleName && e.sample_type === selectedType)
-      .sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-
-    return history.map((e: any, index: number) => ({
-      version: `v${index + 1}`,
-      score: e.total_score,
-      date: new Date(e.created_at).toLocaleDateString(),
-      evaluator: e.evaluator_name,
-    }));
+    const criteria = EVALUATION_CRITERIA[sampleEvals[0].sample_type as keyof typeof EVALUATION_CRITERIA];
+    
+    return criteria.map(item => {
+      const dataPoint: any = { criterion: item.label };
+        sampleEvals.forEach((evaluation: any, index: number) => {
+          dataPoint[`평가${index + 1}`] = evaluation.scores[item.key] || 0;
+          dataPoint[`evaluator${index + 1}`] = evaluation.evaluator_name;
+      });
+      return dataPoint;
+    });
   };
 
   const exportToExcel = () => {
@@ -282,7 +325,7 @@ export default function Samples() {
     const ws = XLSX.utils.json_to_sheet(exportData);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, '샘플 평가');
-    XLSX.writeFile(wb, `샘플평가_${SAMPLE_TYPES[selectedType].label}_${new Date().toLocaleDateString()}.xlsx`);
+    XLSX.writeFile(wb, `샘플평가_${selectedType === 'all' ? '전체' : SAMPLE_TYPES[selectedType as keyof typeof SAMPLE_TYPES].label}_${new Date().toLocaleDateString()}.xlsx`);
   };
 
   return (
@@ -294,7 +337,15 @@ export default function Samples() {
             <h1 className="text-3xl font-bold text-[#2C3E50] mb-2">샘플 평가 관리</h1>
             <p className="text-gray-600">제품 샘플을 평가하고 결과를 분석합니다</p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
+            <Button 
+              onClick={() => setShowEvaluatorForm(true)}
+              variant="outline"
+              className="shadow-md"
+            >
+              <Users className="w-4 h-4 mr-2" />
+              평가자 관리
+            </Button>
             <Button 
               onClick={exportToExcel}
               variant="outline"
@@ -316,6 +367,69 @@ export default function Samples() {
             </Button>
           </div>
         </div>
+
+        {/* 평가자 관리 다이얼로그 */}
+        <Dialog open={showEvaluatorForm} onOpenChange={setShowEvaluatorForm}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>평가자 관리</DialogTitle>
+              <DialogDescription>
+                평가자를 등록하고 관리합니다.
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="space-y-4">
+              <div>
+                <Label>평가자 이름</Label>
+                <Input
+                  value={evaluatorName}
+                  onChange={(e) => setEvaluatorName(e.target.value)}
+                  placeholder="홍길동"
+                />
+              </div>
+              <div>
+                <Label>이메일 (선택)</Label>
+                <Input
+                  type="email"
+                  value={evaluatorEmail}
+                  onChange={(e) => setEvaluatorEmail(e.target.value)}
+                  placeholder="hong@example.com"
+                />
+              </div>
+
+              <div className="border-t pt-4">
+                <h4 className="font-semibold mb-3">등록된 평가자</h4>
+                <div className="space-y-2 max-h-48 overflow-y-auto">
+                  {evaluators.length === 0 ? (
+                    <p className="text-sm text-gray-500 text-center py-4">등록된 평가자가 없습니다</p>
+                  ) : (
+                    evaluators.map((evaluator: any) => (
+                      <div key={evaluator.id} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                        <div>
+                          <p className="font-medium">{evaluator.name}</p>
+                          {evaluator.email && <p className="text-xs text-gray-500">{evaluator.email}</p>}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowEvaluatorForm(false)}>
+                닫기
+              </Button>
+              <Button 
+                onClick={handleEvaluatorSubmit}
+                disabled={!evaluatorName}
+                className="bg-[#93C572] hover:bg-[#7FB05B]"
+              >
+                평가자 추가
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* 평가 등록/수정 폼 */}
         <Dialog open={showEvaluationForm} onOpenChange={(open) => !open && resetForm()}>
@@ -351,7 +465,7 @@ export default function Samples() {
                 <div>
                   <Label>샘플 유형</Label>
                   <select
-                    value={selectedType}
+                    value={selectedType === 'all' ? 'ampoule' : selectedType}
                     onChange={(e) => setSelectedType(e.target.value as keyof typeof EVALUATION_CRITERIA)}
                     className="w-full h-10 px-3 border rounded-md"
                     disabled={!!editingEvaluation}
@@ -376,7 +490,7 @@ export default function Samples() {
               <div className="border-t pt-4">
                 <h4 className="font-semibold mb-3">평가 항목 (1-5점)</h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {EVALUATION_CRITERIA[selectedType].map((item) => (
+                  {EVALUATION_CRITERIA[selectedType === 'all' ? 'ampoule' : selectedType as keyof typeof EVALUATION_CRITERIA].map((item) => (
                     <div key={item.key}>
                       <Label>{item.label}</Label>
                       <Input
@@ -426,215 +540,326 @@ export default function Samples() {
           </AlertDialogContent>
         </AlertDialog>
 
-        {/* 히스토리 다이얼로그 */}
-        <Dialog open={!!viewingHistory} onOpenChange={() => setViewingHistory(null)}>
-          <DialogContent className="max-w-4xl">
+        {/* 비교 그래프 다이얼로그 */}
+        <Dialog open={!!viewingComparison} onOpenChange={() => setViewingComparison(null)}>
+          <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>평가 히스토리: {viewingHistory}</DialogTitle>
+              <DialogTitle>평가 비교: {viewingComparison}</DialogTitle>
               <DialogDescription>
-                시간에 따른 평가 점수 변화를 확인할 수 있습니다.
+                동일 샘플의 여러 평가를 비교합니다.
               </DialogDescription>
             </DialogHeader>
             
-            {viewingHistory && (
-              <div className="space-y-4">
-                <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={getHistoryData(viewingHistory)}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="version" />
-                    <YAxis />
-                    <Tooltip />
-                    <Legend />
-                    <Line type="monotone" dataKey="score" stroke="#93C572" strokeWidth={2} />
-                  </LineChart>
-                </ResponsiveContainer>
+            {viewingComparison && groupedBySampleName[viewingComparison] && (
+              <div className="space-y-6">
+                {/* 평가 지표별 비교 차트 */}
+                <div>
+                  <h4 className="font-semibold mb-3">평가 지표별 비교</h4>
+                  <ResponsiveContainer width="100%" height={400}>
+                    <BarChart data={getComparisonData(viewingComparison)}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="criterion" />
+                      <YAxis domain={[0, 5]} />
+                      <Tooltip />
+                      <Legend />
+                        {groupedBySampleName[viewingComparison].map((evaluation: any, index: number) => (
+                        <Bar 
+                          key={index} 
+                          dataKey={`평가${index + 1}`} 
+                          fill={`hsl(${index * 60}, 70%, 50%)`}
+                          name={`${eval.evaluator_name} (${new Date(eval.created_at).toLocaleDateString()})`}
+                        />
+                      ))}
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
 
-                <div className="space-y-2">
-                  {getHistoryData(viewingHistory).map((item: any, index: number) => (
-                    <div key={index} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-                      <div className="flex items-center gap-3">
-                        <Badge>{item.version}</Badge>
-                        <span className="text-sm text-gray-600">{item.date}</span>
-                        <div className="flex items-center gap-1 text-sm text-gray-500">
-                          <User className="w-3 h-3" />
-                          {item.evaluator}
-                        </div>
-                      </div>
-                      <div className="text-lg font-semibold text-[#93C572]">
-                        {item.score}점
-                      </div>
-                    </div>
-                  ))}
+                {/* 개별 평가 레이더 차트 */}
+                <div>
+                  <h4 className="font-semibold mb-3">개별 평가 상세</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {groupedBySampleName[viewingComparison].map((evaluation: any, index: number) => (
+                      <Card key={evaluation.id}>
+                        <CardHeader>
+                          <CardTitle className="text-sm">
+                            평가 {index + 1} - {evaluation.evaluator_name}
+                          </CardTitle>
+                          <p className="text-xs text-gray-500">
+                            {new Date(evaluation.created_at).toLocaleString()}
+                          </p>
+                        </CardHeader>
+                        <CardContent>
+                          <ResponsiveContainer width="100%" height={250}>
+                            <RadarChart data={getRadarData(evaluation)}>
+                              <PolarGrid />
+                              <PolarAngleAxis dataKey="subject" />
+                              <PolarRadiusAxis domain={[0, 5]} />
+                              <Radar
+                                name="점수"
+                                dataKey="score"
+                                stroke={SAMPLE_TYPES[evaluation.sample_type as keyof typeof SAMPLE_TYPES].chartColor}
+                                fill={SAMPLE_TYPES[evaluation.sample_type as keyof typeof SAMPLE_TYPES].chartColor}
+                                fillOpacity={0.6}
+                              />
+                            </RadarChart>
+                          </ResponsiveContainer>
+                          <div className="mt-4 text-center">
+                            <div className="text-2xl font-bold text-[#93C572]">
+                              {evaluation.total_score}/{evaluation.max_score}
+                            </div>
+                            <div className="text-sm text-gray-500">
+                              {Math.round((evaluation.total_score / evaluation.max_score) * 100)}%
+                            </div>
+                            {evaluation.comment && (
+                              <p className="mt-2 text-sm text-gray-600 italic">"{evaluation.comment}"</p>
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
                 </div>
               </div>
             )}
           </DialogContent>
         </Dialog>
 
-        {/* 샘플 유형 탭 */}
-        <Tabs value={selectedType} onValueChange={(value) => setSelectedType(value as keyof typeof EVALUATION_CRITERIA)}>
-          <TabsList className="mb-6">
-            {Object.entries(SAMPLE_TYPES).map(([key, { label }]) => (
-              <TabsTrigger key={key} value={key}>{label}</TabsTrigger>
-            ))}
-          </TabsList>
+        {/* 탭 */}        <Tabs value={selectedType} onValueChange={(value) => setSelectedType(value as any)} className="w-full">
+          <div className="flex justify-between items-center mb-4">
+            <TabsList className="grid grid-cols-5 w-full max-w-2xl">
+              <TabsTrigger value="all">전체</TabsTrigger>
+              <TabsTrigger value="ampoule">앰플</TabsTrigger>
+              <TabsTrigger value="toner_pad">토너패드</TabsTrigger>
+              <TabsTrigger value="cream_lotion">크림&로션</TabsTrigger>
+              <TabsTrigger value="evaluators">평가자 관리</TabsTrigger>
+            </TabsList>
+          </div>
 
-          {Object.keys(SAMPLE_TYPES).map((type) => (
-            <TabsContent key={type} value={type}>
-              {/* 평균 점수 비교 그래프 */}
-              {averageScores.length > 0 && (
-                <Card className="mb-6 bg-white shadow-sm">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <BarChart3 className="w-5 h-5" />
-                      평균 점수 비교
-                      <span className="text-sm font-normal text-gray-500 ml-2">
-                        (여러 평가자의 평균)
-                      </span>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <ResponsiveContainer width="100%" height={300}>
-                      <BarChart data={getBarChartData()}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="name" />
-                        <YAxis />
-                        <Tooltip />
-                        <Bar dataKey="score" fill="#93C572" />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </CardContent>
-                </Card>
-              )}
+          {/* 통계 카드 */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">총 평가 수</CardTitle>
+                <BarChart3 className="h-4 w-4 text-[#93C572]" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{filteredEvaluations.length}</div>
+                <p className="text-xs text-gray-500">
+                  샘플 {Object.keys(groupedBySampleName).length}개
+                </p>
+              </CardContent>
+            </Card>
 
-              {/* 샘플 목록 */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {filteredEvaluations.length === 0 ? (
-                  <Card className="col-span-full">
-                    <CardContent className="text-center py-12">
-                      <Package className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                      <h3 className="text-xl font-semibold mb-2">평가된 샘플이 없습니다</h3>
-                      <p className="text-gray-600 mb-6">
-                        새 평가 등록 버튼을 클릭하여 샘플 평가를 시작하세요.
-                      </p>
-                    </CardContent>
-                  </Card>
-                ) : (
-                  filteredEvaluations.map((evaluation: any) => (
-                    <Card key={evaluation.id} className="bg-white shadow-sm hover:shadow-md transition-shadow">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">평균 점수</CardTitle>
+                <TrendingUp className="h-4 w-4 text-[#93C572]" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {filteredEvaluations.length > 0
+                    ? Math.round(
+                        (filteredEvaluations.reduce((sum: number, e: any) => sum + (e.total_score / e.max_score) * 100, 0) /
+                          filteredEvaluations.length)
+                      )
+                    : 0}
+                  %
+                </div>
+                <p className="text-xs text-gray-500">전체 평가 평균</p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">평가자 수</CardTitle>
+                <Users className="h-4 w-4 text-[#93C572]" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {new Set(filteredEvaluations.map((e: any) => e.evaluator_id)).size}
+                </div>
+                <p className="text-xs text-gray-500">참여 평가자</p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* 평균 점수 비교 차트 */}
+          {averageScores.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>평균 점수 비교 (여러 평가자의 평균)</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={averageScores}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="name" />
+                    <YAxis />
+                    <Tooltip 
+                      content={({ active, payload }) => {
+                        if (active && payload && payload.length) {
+                          const data = payload[0].payload;
+                          return (
+                            <div className="bg-white p-3 border rounded shadow-lg">
+                              <p className="font-semibold">{data.name}</p>
+                              <p className="text-sm">평균: {Math.round(data.totalScore * 10) / 10}/{data.maxScore}</p>
+                              <p className="text-sm">평가 수: {data.count}개</p>
+                              <p className="text-sm">백분율: {Math.round((data.totalScore / data.maxScore) * 100)}%</p>
+                            </div>
+                          );
+                        }
+                        return null;
+                      }}
+                    />
+                    <Legend />
+                    <Bar 
+                      dataKey="totalScore" 
+                      fill="#93C572" 
+                      name="평균 점수"
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* 평가 목록 */}
+          <TabsContent value={selectedType} className="space-y-4">
+            {isLoading ? (
+              <div className="text-center py-12">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#93C572] mx-auto"></div>
+                <p className="mt-4 text-gray-600">평가 데이터를 불러오는 중...</p>
+              </div>
+            ) : Object.keys(groupedBySampleName).length === 0 ? (
+              <Card className="p-12 text-center">
+                <Package className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-gray-700 mb-2">평가가 없습니다</h3>
+                <p className="text-gray-500 mb-4">새로운 샘플 평가를 등록해보세요</p>
+                <Button 
+                  onClick={() => {
+                    resetForm();
+                    setShowEvaluationForm(true);
+                  }}
+                  className="bg-[#93C572] hover:bg-[#7FB05B]"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  평가 등록
+                </Button>
+              </Card>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {Object.entries(groupedBySampleName).map(([sampleName, evals]: [string, any]) => {
+                  const avgData = averageScores.find(a => a.name === sampleName);
+                  if (!avgData) return null;
+
+                  return (
+                    <Card key={sampleName} className="hover:shadow-lg transition-shadow">
                       <CardHeader>
                         <div className="flex justify-between items-start">
                           <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-2">
-                              <CardTitle className="text-lg">{evaluation.sample_name}</CardTitle>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => setViewingHistory(evaluation.sample_name)}
-                                className="h-6 px-2"
-                              >
-                                <History className="w-3 h-3" />
-                              </Button>
-                            </div>
+                            <CardTitle className="text-lg mb-2">{sampleName}</CardTitle>
                             <div className="flex gap-2 flex-wrap">
+                              <Badge className={SAMPLE_TYPES[avgData.sampleType as keyof typeof SAMPLE_TYPES].color}>
+                                {SAMPLE_TYPES[avgData.sampleType as keyof typeof SAMPLE_TYPES].label}
+                              </Badge>
                               <Badge variant="outline">
-                                {evaluation.brand === 'howpapa' ? '하우파파' : '누씨오'}
+                                {avgData.brand === 'howpapa' ? '하우파파' : '누씨오'}
                               </Badge>
-                              <Badge className={SAMPLE_TYPES[evaluation.sample_type as keyof typeof SAMPLE_TYPES].color}>
-                                {SAMPLE_TYPES[evaluation.sample_type as keyof typeof SAMPLE_TYPES].label}
+                              <Badge variant="secondary">
+                                평가 {avgData.count}개
                               </Badge>
-                              <Badge variant="outline" className="flex items-center gap-1">
-                                <User className="w-3 h-3" />
-                                {evaluation.evaluator_name}
-                              </Badge>
-                            </div>
-                            {evaluation.comment && (
-                              <p className="text-sm text-gray-600 mt-2 italic">
-                                "{evaluation.comment}"
-                              </p>
-                            )}
-                          </div>
-                          <div className="text-right ml-4">
-                            <div className="text-3xl font-bold text-[#93C572]">
-                              {evaluation.total_score}
-                            </div>
-                            <div className="text-sm text-gray-500">
-                              / {evaluation.max_score}점
-                            </div>
-                            <div className="text-sm font-semibold text-blue-600 mt-1">
-                              {Math.round((evaluation.total_score / evaluation.max_score) * 100)}%
                             </div>
                           </div>
-                        </div>
-                        <div className="flex gap-2 mt-3">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleEdit(evaluation)}
-                            className="flex-1"
-                          >
-                            <Edit className="w-3 h-3 mr-1" />
-                            수정
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleDelete(evaluation)}
-                            className="flex-1 text-red-600 hover:text-red-700 hover:bg-red-50"
-                          >
-                            <Trash2 className="w-3 h-3 mr-1" />
-                            삭제
-                          </Button>
                         </div>
                       </CardHeader>
                       <CardContent>
-                        {/* 레이더 차트 */}
-                        <ResponsiveContainer width="100%" height={300}>
-                          <RadarChart data={getRadarData(evaluation)}>
-                            <PolarGrid />
-                            <PolarAngleAxis dataKey="subject" />
-                            <PolarRadiusAxis angle={90} domain={[0, 5]} />
-                            <Radar
-                              name={evaluation.sample_name}
-                              dataKey="score"
-                              stroke="#93C572"
-                              fill="#93C572"
-                              fillOpacity={0.6}
-                            />
-                            <Legend />
-                          </RadarChart>
-                        </ResponsiveContainer>
+                        <div className="space-y-4">
+                          {/* 평균 점수 */}
+                          <div className="text-center p-4 bg-gradient-to-br from-[#93C572]/10 to-[#93C572]/5 rounded-lg">
+                            <div className="text-3xl font-bold text-[#93C572]">
+                              {Math.round(avgData.totalScore * 10) / 10}
+                            </div>
+                            <div className="text-sm text-gray-600">
+                              / {avgData.maxScore} ({Math.round((avgData.totalScore / avgData.maxScore) * 100)}%)
+                            </div>
+                            <div className="text-xs text-gray-500 mt-1">평균 점수</div>
+                          </div>
 
-                        {/* 상세 점수 */}
-                        <div className="mt-4 space-y-2">
-                          {EVALUATION_CRITERIA[evaluation.sample_type as keyof typeof EVALUATION_CRITERIA].map((item) => (
-                            <div key={item.key} className="flex justify-between items-center">
-                              <span className="text-sm text-gray-600">{item.label}</span>
-                              <div className="flex items-center gap-2">
-                                <div className="w-32 bg-gray-200 rounded-full h-2">
-                                  <div
-                                    className="bg-[#93C572] h-2 rounded-full"
-                                    style={{ width: `${((evaluation.scores?.[item.key] || 0) / item.max) * 100}%` }}
+                          {/* 평가 지표별 평균 */}
+                          <div className="space-y-2">
+                            {EVALUATION_CRITERIA[avgData.sampleType as keyof typeof EVALUATION_CRITERIA].map((item) => (
+                              <div key={item.key} className="flex items-center gap-2">
+                                <span className="text-sm text-gray-600 w-20">{item.label}</span>
+                                <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
+                                  <div 
+                                    className="h-full bg-[#93C572] transition-all"
+                                    style={{ width: `${(avgData.avgScores[item.key] / item.max) * 100}%` }}
                                   />
                                 </div>
-                                <span className="text-sm font-semibold w-12 text-right">
-                                  {evaluation.scores?.[item.key] || 0}/{item.max}
+                                <span className="text-sm font-medium w-12 text-right">
+                                  {Math.round(avgData.avgScores[item.key] * 10) / 10}/{item.max}
                                 </span>
                               </div>
-                            </div>
-                          ))}
-                        </div>
+                            ))}
+                          </div>
 
-                        <div className="mt-4 pt-4 border-t text-xs text-gray-500">
-                          평가일: {new Date(evaluation.created_at).toLocaleString()}
+                          {/* 액션 버튼 */}
+                          <div className="flex gap-2 pt-2 border-t">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="flex-1"
+                              onClick={() => setViewingComparison(sampleName)}
+                            >
+                              <History className="w-4 h-4 mr-1" />
+                              비교
+                            </Button>
+                            {evals.length === 1 && (
+                              <>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleEdit(evals[0])}
+                                >
+                                  <Edit className="w-4 h-4" />
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleDelete(evals[0])}
+                                  className="text-red-600 hover:text-red-700"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              </>
+                            )}
+                          </div>
+
+                          {/* 평가자 정보 */}
+                          <div className="text-xs text-gray-500 pt-2 border-t">
+                            <div className="flex items-center gap-1 flex-wrap">
+                              <User className="w-3 h-3" />
+                              {evals.map((e: any, i: number) => (
+                                <span key={i}>
+                                  {e.evaluator_name}
+                                  {i < evals.length - 1 && ', '}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
                         </div>
                       </CardContent>
                     </Card>
-                  ))
-                )}
+                  );
+                })}
               </div>
-            </TabsContent>
-          ))}
+            )}
+          </TabsContent>
+
+          {/* 평가자 관리 탭 */}
+          <TabsContent value="evaluators">
+            <EvaluatorManager />
+          </TabsContent>
         </Tabs>
       </div>
     </PageLayout>
