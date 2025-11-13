@@ -442,7 +442,7 @@ export default function Samples() {
             </DialogHeader>
             
             <div className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <Label>샘플명</Label>
                   <Input
@@ -472,6 +472,19 @@ export default function Samples() {
                   >
                     {Object.entries(SAMPLE_TYPES).map(([key, { label }]) => (
                       <option key={key} value={key}>{label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <Label>평가자</Label>
+                  <select
+                    value={evaluatorName}
+                    onChange={(e) => setEvaluatorName(e.target.value)}
+                    className="w-full h-10 px-3 border rounded-md"
+                  >
+                    <option value="">평가자 선택</option>
+                    {evaluators.map((evaluator: any) => (
+                      <option key={evaluator.id} value={evaluator.name}>{evaluator.name}</option>
                     ))}
                   </select>
                 </div>
