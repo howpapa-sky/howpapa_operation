@@ -14,7 +14,8 @@ import {
   Package,
   FileText,
   Users,
-  ArrowRight
+  ArrowRight,
+  Plus
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 
