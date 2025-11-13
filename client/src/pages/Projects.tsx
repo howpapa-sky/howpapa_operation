@@ -42,6 +42,7 @@ export default function Projects() {
   const { user } = useSupabaseAuth();
   const [selectedType, setSelectedType] = useState<string | null>(null);
   const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
+  const [selectedBrand, setSelectedBrand] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
   // URL 쿼리 파라미터에서 type 추출
@@ -68,6 +69,7 @@ export default function Projects() {
   const filteredProjects = projects.filter((project: any) => {
     if (selectedType && project.type !== selectedType) return false;
     if (selectedStatus && project.status !== selectedStatus) return false;
+    if (selectedBrand && project.brand !== selectedBrand) return false;
     if (searchQuery && !project.name.toLowerCase().includes(searchQuery.toLowerCase())) return false;
     return true;
   });
@@ -165,6 +167,37 @@ export default function Projects() {
         {/* 검색 및 필터 */}
         <Card className="p-4 mb-6 bg-white shadow-sm">
           <div className="flex flex-col gap-4">
+            {/* 브랜드 필터 */}
+            <div>
+              <div className="text-sm font-medium text-gray-700 mb-2">브랜드</div>
+              <div className="flex gap-2 flex-wrap">
+                <Button
+                  variant={selectedBrand === null ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setSelectedBrand(null)}
+                  className={selectedBrand === null ? "bg-[#93C572] hover:bg-[#7FB05B]" : ""}
+                >
+                  전체
+                </Button>
+                <Button
+                  variant={selectedBrand === 'howpapa' ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setSelectedBrand('howpapa')}
+                  className={selectedBrand === 'howpapa' ? "bg-[#93C572] hover:bg-[#7FB05B]" : ""}
+                >
+                  하우파파
+                </Button>
+                <Button
+                  variant={selectedBrand === 'nusio' ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setSelectedBrand('nusio')}
+                  className={selectedBrand === 'nusio' ? "bg-[#93C572] hover:bg-[#7FB05B]" : ""}
+                >
+                  누씨오
+                </Button>
+              </div>
+            </div>
+
             {/* 검색 */}
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
