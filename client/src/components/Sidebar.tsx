@@ -3,6 +3,7 @@ import {
   LayoutDashboard, 
   TestTube, 
   FileText,
+  KeyRound,
   ChevronDown,
   ChevronRight
 } from "lucide-react";
@@ -55,6 +56,12 @@ export default function Sidebar({ className }: SidebarProps) {
       label: '상세페이지',
       icon: FileText,
       path: '/projects?type=detail_page',
+    },
+    {
+      key: 'account_info',
+      label: '계정 정보',
+      icon: KeyRound,
+      path: '/account-info',
     },
   ];
 

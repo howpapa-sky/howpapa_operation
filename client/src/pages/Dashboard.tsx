@@ -18,6 +18,7 @@ import {
   Calendar,
   BarChart3,
   PieChart as PieChartIcon,
+  KeyRound,
   TrendingUp
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
@@ -141,6 +142,18 @@ export default function Dashboard() {
         '개선 요청 사항 기록'
       ],
       link: '/samples?tab=evaluators'
+    },
+    {
+      title: '계정 정보',
+      description: '각 서비스의 계정 정보를 통합 관리합니다',
+      icon: KeyRound,
+      color: 'bg-[#6B8E9D]',
+      items: [
+        '마케팅, 판매채널, CS&발주',
+        '제품관련 및 기타 계정',
+        '안전한 비밀번호 관리'
+      ],
+      link: '/account-info'
     },
   ];
 
