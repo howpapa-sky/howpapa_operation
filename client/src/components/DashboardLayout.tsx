@@ -21,15 +21,20 @@ import {
 } from "@/components/ui/sidebar";
 import { APP_LOGO, APP_TITLE, getLoginUrl } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
-import { LayoutDashboard, LogOut, PanelLeft, Users } from "lucide-react";
+import { LayoutDashboard, LogOut, PanelLeft, Users, Settings, FolderKanban, Package, Building2, Bot } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
 import { Button } from "./ui/button";
 
 const menuItems = [
-  { icon: LayoutDashboard, label: "Page 1", path: "/" },
-  { icon: Users, label: "Page 2", path: "/some-path" },
+  { icon: LayoutDashboard, label: "대시보드", path: "/" },
+  { icon: FolderKanban, label: "프로젝트", path: "/projects" },
+  { icon: Package, label: "샘플", path: "/samples" },
+  { icon: Building2, label: "거래처", path: "/vendors" },
+  { icon: Bot, label: "AI 어시스턴트", path: "/ai-assistant" },
+  { icon: Users, label: "계정 관리", path: "/accounts" },
+  { icon: Settings, label: "설정", path: "/settings" },
 ];
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";

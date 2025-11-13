@@ -21,6 +21,7 @@ import Accounts from "./pages/Accounts";
 import AccountForm from "./pages/AccountForm";
 import MyTasks from "./pages/MyTasks";
 import Login from "./pages/Login";
+import Settings from "./pages/Settings";
 import { useSupabaseAuth } from "./hooks/useSupabaseAuth";
 import { Redirect } from "wouter";
 
@@ -54,6 +55,7 @@ function Router() {
       <Route path={"/projects/:id/edit"} component={ProjectForm} />
       <Route path={"/vendors"} component={Vendors} />
       <Route path={"/ai-assistant"} component={AIAssistant} />
+      <Route path={"/settings"} component={Settings} />
       <Route path={"/accounts"} component={Accounts} />
       <Route path={"/accounts/new"} component={AccountForm} />
       <Route path={"/accounts/:id/edit"} component={AccountForm} />
