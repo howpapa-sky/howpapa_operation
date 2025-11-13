@@ -1,11 +1,11 @@
 import { useState } from "react";
-import { trpc } from "@/lib/trpc";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { useAuth } from "@/_core/hooks/useAuth";
-import { Link } from "wouter";
+import { useSupabaseAuth } from "@/hooks/useSupabaseAuth";
+import { Link, useLocation } from "wouter";
 import { Plus, Calendar, AlertCircle, CheckCircle, Clock, Pause } from "lucide-react";
-import { toast } from "sonner";
 
 const PROJECT_TYPES = {
   sampling: "샘플링",
@@ -36,185 +36,165 @@ const PRIORITY_LABELS = {
 };
 
 export default function Projects() {
-  const { user } = useAuth();
+  const [location] = useLocation();
+  const { user } = useSupabaseAuth();
   const [selectedType, setSelectedType] = useState<string | null>(null);
   const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
 
-  const { data: projects = [], isLoading, refetch } = trpc.projects.list.useQuery();
+  // URL 쿼리 파라미터에서 type 추출
+  useState(() => {
+    const params = new URLSearchParams(location.split('?')[1]);
+    const typeParam = params.get('type');
+    if (typeParam) setSelectedType(typeParam);
+  });
 
-  const canEdit = user && (user.role === "admin" || user.role === "manager");
+  const { data: projects = [], isLoading } = useQuery({
+    queryKey: ['projects'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('projects')
+        .select('*')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return data;
+    }
+  });
 
-  const filteredProjects = projects.filter((project) => {
+  const canEdit = user && (user.role === 'admin' || user.role === 'manager');
+
+  const filteredProjects = projects.filter((project: any) => {
     if (selectedType && project.type !== selectedType) return false;
     if (selectedStatus && project.status !== selectedStatus) return false;
     return true;
   });
 
-  const groupedProjects = filteredProjects.reduce((acc, project) => {
-    if (!acc[project.type]) acc[project.type] = [];
-    acc[project.type].push(project);
-    return acc;
-  }, {} as Record<string, typeof projects>);
+  const getDdayText = (targetDate: string | null) => {
+    if (!targetDate) return null;
+    const today = new Date();
+    const target = new Date(targetDate);
+    const diffTime = target.getTime() - today.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    if (diffDays < 0) return `D+${Math.abs(diffDays)}`;
+    if (diffDays === 0) return "D-Day";
+    return `D-${diffDays}`;
+  };
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-[#F5F8F2] to-white flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#93C572] mx-auto"></div>
-          <p className="mt-4 text-gray-600">프로젝트를 불러오는 중...</p>
-        </div>
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-lg">로딩 중...</div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#F5F8F2] to-white">
-      <div className="container mx-auto py-8 px-4">
-        {/* Header */}
-        <div className="flex justify-between items-center mb-8">
-          <div>
-            <h1 className="text-4xl font-bold text-gray-900 mb-2">프로젝트 관리</h1>
-            <p className="text-gray-600">브랜드 업무 프로젝트를 효율적으로 관리하세요</p>
-          </div>
+    <div className="min-h-screen bg-gradient-to-br from-[#F0F4F8] to-[#E1E7EF] p-6">
+      <div className="max-w-7xl mx-auto">
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-3xl font-bold text-[#2C3E50]">프로젝트 관리</h1>
           {canEdit && (
             <Link href="/projects/new">
-              <Button className="bg-[#93C572] hover:bg-[#7AB05C] text-white">
-                <Plus className="w-5 h-5 mr-2" />
+              <Button className="bg-[#93C572] hover:bg-[#7FB05B]">
+                <Plus className="w-4 h-4 mr-2" />
                 새 프로젝트
               </Button>
             </Link>
           )}
         </div>
 
-        {/* Filters */}
-        <div className="mb-8 flex flex-wrap gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">프로젝트 유형</label>
-            <div className="flex flex-wrap gap-2">
+        {/* 필터 */}
+        <div className="mb-6 flex gap-4 flex-wrap">
+          <div className="flex gap-2">
+            <Button
+              variant={selectedType === null ? "default" : "outline"}
+              onClick={() => setSelectedType(null)}
+            >
+              전체
+            </Button>
+            {Object.entries(PROJECT_TYPES).map(([key, label]) => (
               <Button
-                variant={selectedType === null ? "default" : "outline"}
-                size="sm"
-                onClick={() => setSelectedType(null)}
-                className={selectedType === null ? "bg-[#93C572] hover:bg-[#7AB05C]" : ""}
+                key={key}
+                variant={selectedType === key ? "default" : "outline"}
+                onClick={() => setSelectedType(key)}
               >
-                전체
+                {label}
               </Button>
-              {Object.entries(PROJECT_TYPES).map(([key, label]) => (
-                <Button
-                  key={key}
-                  variant={selectedType === key ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setSelectedType(key)}
-                  className={selectedType === key ? "bg-[#93C572] hover:bg-[#7AB05C]" : ""}
-                >
-                  {label}
-                </Button>
-              ))}
-            </div>
+            ))}
           </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">진행 상태</label>
-            <div className="flex flex-wrap gap-2">
+          <div className="flex gap-2">
+            {Object.entries(PROJECT_STATUS).map(([key, { label }]) => (
               <Button
-                variant={selectedStatus === null ? "default" : "outline"}
-                size="sm"
-                onClick={() => setSelectedStatus(null)}
-                className={selectedStatus === null ? "bg-[#93C572] hover:bg-[#7AB05C]" : ""}
+                key={key}
+                variant={selectedStatus === key ? "default" : "outline"}
+                onClick={() => setSelectedStatus(selectedStatus === key ? null : key)}
               >
-                전체
+                {label}
               </Button>
-              {Object.entries(PROJECT_STATUS).map(([key, { label }]) => (
-                <Button
-                  key={key}
-                  variant={selectedStatus === key ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setSelectedStatus(key)}
-                  className={selectedStatus === key ? "bg-[#93C572] hover:bg-[#7AB05C]" : ""}
-                >
-                  {label}
-                </Button>
-              ))}
-            </div>
+            ))}
           </div>
         </div>
 
-        {/* Projects */}
-        {Object.keys(groupedProjects).length === 0 ? (
-          <Card className="p-12 text-center bg-white/80 backdrop-blur-sm border-2 border-[#93C572]/20">
-            <div className="text-gray-400 mb-4">
-              <svg className="w-24 h-24 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-            </div>
-            <h3 className="text-xl font-semibold text-gray-700 mb-2">프로젝트가 없습니다</h3>
-            <p className="text-gray-500 mb-6">새로운 프로젝트를 등록하여 업무를 시작하세요</p>
+        {/* 프로젝트 목록 */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filteredProjects.map((project: any) => {
+            const StatusIcon = PROJECT_STATUS[project.status as keyof typeof PROJECT_STATUS]?.icon || Clock;
+            const statusColor = PROJECT_STATUS[project.status as keyof typeof PROJECT_STATUS]?.color || "text-gray-500";
+            const ddayText = getDdayText(project.target_date);
+
+            return (
+              <Link key={project.id} href={`/projects/${project.id}`}>
+                <Card className="p-4 hover:shadow-lg transition-shadow cursor-pointer">
+                  <div className="flex justify-between items-start mb-3">
+                    <div className="flex-1">
+                      <h3 className="font-semibold text-lg mb-1">{project.name}</h3>
+                      <p className="text-sm text-gray-600">
+                        {PROJECT_TYPES[project.type as keyof typeof PROJECT_TYPES]}
+                      </p>
+                    </div>
+                    <div className="flex flex-col items-end gap-2">
+                      <span className={`px-2 py-1 rounded text-xs font-medium ${PRIORITY_COLORS[project.priority as keyof typeof PRIORITY_COLORS]}`}>
+                        {PRIORITY_LABELS[project.priority as keyof typeof PRIORITY_LABELS]}
+                      </span>
+                      {ddayText && (
+                        <span className={`text-sm font-semibold ${ddayText.startsWith('D+') ? 'text-red-500' : 'text-blue-500'}`}>
+                          {ddayText}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 text-sm text-gray-600 mb-2">
+                    <StatusIcon className={`w-4 h-4 ${statusColor}`} />
+                    <span>{PROJECT_STATUS[project.status as keyof typeof PROJECT_STATUS]?.label}</span>
+                  </div>
+
+                  {project.target_date && (
+                    <div className="flex items-center gap-2 text-sm text-gray-600">
+                      <Calendar className="w-4 h-4" />
+                      <span>목표일: {new Date(project.target_date).toLocaleDateString('ko-KR')}</span>
+                    </div>
+                  )}
+
+                  {project.description && (
+                    <p className="mt-3 text-sm text-gray-700 line-clamp-2">{project.description}</p>
+                  )}
+                </Card>
+              </Link>
+            );
+          })}
+        </div>
+
+        {filteredProjects.length === 0 && (
+          <div className="text-center py-12">
+            <p className="text-gray-500">프로젝트가 없습니다.</p>
             {canEdit && (
               <Link href="/projects/new">
-                <Button className="bg-[#93C572] hover:bg-[#7AB05C] text-white">
-                  <Plus className="w-5 h-5 mr-2" />
+                <Button className="mt-4 bg-[#93C572] hover:bg-[#7FB05B]">
                   첫 프로젝트 만들기
                 </Button>
               </Link>
             )}
-          </Card>
-        ) : (
-          <div className="space-y-8">
-            {Object.entries(groupedProjects).map(([type, typeProjects]) => (
-              <div key={type}>
-                <h2 className="text-2xl font-bold text-gray-800 mb-4 flex items-center gap-2">
-                  <span className="w-1 h-8 bg-[#93C572] rounded-full"></span>
-                  {PROJECT_TYPES[type as keyof typeof PROJECT_TYPES]}
-                  <span className="text-lg font-normal text-gray-500">({typeProjects.length})</span>
-                </h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {typeProjects.map((project) => {
-                    const StatusIcon = PROJECT_STATUS[project.status as keyof typeof PROJECT_STATUS].icon;
-                    const statusColor = PROJECT_STATUS[project.status as keyof typeof PROJECT_STATUS].color;
-                    const statusLabel = PROJECT_STATUS[project.status as keyof typeof PROJECT_STATUS].label;
-
-                    return (
-                      <Link key={project.id} href={`/projects/${project.id}`}>
-                        <Card className="p-6 hover:shadow-xl transition-all duration-300 cursor-pointer bg-white/80 backdrop-blur-sm border-2 border-transparent hover:border-[#93C572]/30 group">
-                          <div className="flex justify-between items-start mb-4">
-                            <h3 className="text-lg font-bold text-gray-900 group-hover:text-[#93C572] transition-colors line-clamp-2">
-                              {project.name}
-                            </h3>
-                            <span className={`px-3 py-1 rounded-full text-xs font-semibold ${PRIORITY_COLORS[project.priority as keyof typeof PRIORITY_COLORS]}`}>
-                              {PRIORITY_LABELS[project.priority as keyof typeof PRIORITY_LABELS]}
-                            </span>
-                          </div>
-
-                          <div className={`flex items-center gap-2 mb-4 ${statusColor}`}>
-                            <StatusIcon className="w-5 h-5" />
-                            <span className="font-medium">{statusLabel}</span>
-                          </div>
-
-                          {project.description && (
-                            <p className="text-gray-600 text-sm mb-4 line-clamp-2">{project.description}</p>
-                          )}
-
-                          <div className="space-y-2 text-sm text-gray-600">
-                            {project.targetDate && (
-                              <div className="flex items-center gap-2">
-                                <Calendar className="w-4 h-4 text-[#93C572]" />
-                                <span>목표일: {project.targetDate}</span>
-                              </div>
-                            )}
-                            {project.deadline && (
-                              <div className="flex items-center gap-2">
-                                <AlertCircle className="w-4 h-4 text-red-500" />
-                                <span>마감일: {project.deadline}</span>
-                              </div>
-                            )}
-                          </div>
-                        </Card>
-                      </Link>
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
           </div>
         )}
       </div>
