@@ -11,6 +11,7 @@ import { useSupabaseAuth } from "@/hooks/useSupabaseAuth";
 import { useLocation, useRoute } from "wouter";
 import { ArrowLeft, Save } from "lucide-react";
 import { toast } from "sonner";
+import { notifyProjectCreated, notifyProjectStatusChanged } from "@/lib/naverWorksNotification";
 
 const PROJECT_TYPES = [
   { value: "sampling", label: "샘플링" },
@@ -99,9 +100,19 @@ export default function ProjectForm() {
       if (error) throw error;
       return result;
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       toast.success("프로젝트가 등록되었습니다");
       queryClient.invalidateQueries({ queryKey: ['projects'] });
+      
+      // 네이버 웍스 알림 전송
+      notifyProjectCreated({
+        id: result.id,
+        name: result.name,
+        manager: user?.email || '담당자 미지정',
+        dueDate: result.target_date,
+        priority: result.priority,
+      });
+      
       navigate("/projects");
     },
     onError: (error: any) => {
@@ -120,10 +131,22 @@ export default function ProjectForm() {
       if (error) throw error;
       return result;
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       toast.success("프로젝트가 수정되었습니다");
       queryClient.invalidateQueries({ queryKey: ['projects'] });
       queryClient.invalidateQueries({ queryKey: ['project', params?.id] });
+      
+      // 상태 변경 시 알림 전송
+      if (project && project.status !== result.status) {
+        notifyProjectStatusChanged({
+          id: result.id,
+          name: result.name,
+          previousStatus: project.status,
+          currentStatus: result.status,
+          changedBy: user?.email || '사용자',
+        });
+      }
+      
       navigate("/projects");
     },
     onError: (error: any) => {

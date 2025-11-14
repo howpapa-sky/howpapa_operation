@@ -11,6 +11,7 @@ import { ArrowLeftIcon, CalendarIcon } from "lucide-react";
 import { useState, useEffect } from "react";
 import { Link, useParams, useLocation } from "wouter";
 import { toast } from "sonner";
+import { notifySampleCreated } from "@/lib/naverWorksNotification";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 import { Calendar } from "@/components/ui/calendar";
@@ -50,8 +51,17 @@ export default function SampleForm() {
   );
 
   const createMutation = trpc.samples.create.useMutation({
-    onSuccess: () => {
+    onSuccess: (result) => {
       toast.success("샘플이 등록되었습니다");
+      
+      // 네이버 웍스 알림 전송
+      notifySampleCreated({
+        id: String(result.id),
+        name: result.productName || result.labNumber,
+        project: result.brand || '프로젝트 미지정',
+        round: result.round,
+      });
+      
       navigate("/samples");
     },
     onError: () => {

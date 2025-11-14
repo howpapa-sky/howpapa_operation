@@ -1,0 +1,7 @@
+nohup: ignoring input
+[dotenv@17.2.3] injecting env (9) from .env -- tip: ⚙️  load multiple .env files with { path: ['.env.local', '.env'] }
+🚀 네이버 웍스 웹훅 서버 실행 중: http://localhost:3001
+📝 웹훅 URL: http://localhost:3001/webhook/naver-works
+🧪 테스트 URL: http://localhost:3001/webhook/test
+✅ Access Token 발급 성공
+✅ 채널 메시지 전송 성공: 556d52cf-b97d-0496-ca54-ad035999ea4a
