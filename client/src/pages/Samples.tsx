@@ -28,7 +28,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Package, Plus, TrendingUp, BarChart3, Edit, Trash2, Download, History, User, Users } from "lucide-react";
+import { Package, Plus, TrendingUp, BarChart3, Edit, Trash2, Download, History, User, Users, ClipboardList } from "lucide-react";
 import EvaluatorManager from "@/components/EvaluatorManager";
 import { RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, Legend, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, LineChart, Line, ComposedChart } from 'recharts';
 import * as XLSX from 'xlsx';
@@ -77,6 +77,12 @@ export default function Samples() {
   const [evaluatorName, setEvaluatorName] = useState('');
   const [evaluatorEmail, setEvaluatorEmail] = useState('');
   const [scores, setScores] = useState<Record<string, number>>({});
+  const [showSamplingForm, setShowSamplingForm] = useState(false);
+  const [samplingName, setSamplingName] = useState('');
+  const [samplingType, setSamplingType] = useState<keyof typeof EVALUATION_CRITERIA>('ampoule');
+  const [samplingBrand, setSamplingBrand] = useState('howpapa');
+  const [samplingNotes, setSamplingNotes] = useState<Record<string, string>>({});
+  const [samplingRequest, setSamplingRequest] = useState('');
   const queryClient = useQueryClient();
 
   const { data: evaluations = [], isLoading } = useQuery({
@@ -98,6 +104,18 @@ export default function Samples() {
         .from('evaluators')
         .select('*')
         .order('name');
+      if (error) throw error;
+      return data;
+    }
+  });
+
+  const { data: samplingReviews = [] } = useQuery({
+    queryKey: ['sampling_reviews'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('sampling_reviews')
+        .select('*')
+        .order('created_at', { ascending: false });
       if (error) throw error;
       return data;
     }
@@ -168,12 +186,52 @@ export default function Samples() {
     }
   });
 
+  const createSamplingReviewMutation = useMutation({
+    mutationFn: async (newReview: any) => {
+      const { data, error } = await supabase
+        .from('sampling_reviews')
+        .insert([newReview])
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sampling_reviews'] });
+      resetSamplingForm();
+    }
+  });
+
   const resetForm = () => {
     setShowEvaluationForm(false);
     setEditingEvaluation(null);
     setSampleName('');
     setComment('');
     setScores({});
+  };
+
+  const resetSamplingForm = () => {
+    setShowSamplingForm(false);
+    setSamplingName('');
+    setSamplingType('ampoule');
+    setSamplingBrand('howpapa');
+    setSamplingNotes({});
+    setSamplingRequest('');
+  };
+
+  const handleSamplingSubmit = () => {
+    if (!samplingName.trim()) return;
+
+    const newReview = {
+      sample_name: samplingName,
+      sample_type: samplingType,
+      brand: samplingBrand,
+      notes: samplingNotes,
+      improvement_request: samplingRequest,
+      created_at: new Date().toISOString(),
+    };
+
+    createSamplingReviewMutation.mutate(newReview);
   };
 
   const handleScoreChange = (key: string, value: number) => {
@@ -431,6 +489,114 @@ export default function Samples() {
           </DialogContent>
         </Dialog>
 
+        {/* 샘플링 리뷰 폼 */}
+        <Dialog open={showSamplingForm} onOpenChange={(open) => !open && resetSamplingForm()}>
+          <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>샘플링 품평 기준 작성</DialogTitle>
+              <DialogDescription>
+                샘플에 대한 품평 기준과 항목별 메모를 작성합니다.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label>샘플명</Label>
+                  <Input
+                    value={samplingName}
+                    onChange={(e) => setSamplingName(e.target.value)}
+                    placeholder="예: 누씨오 토너패드 v3"
+                  />
+                </div>
+                <div>
+                  <Label>샘플 유형</Label>
+                  <select
+                    value={samplingType}
+                    onChange={(e) => {
+                      setSamplingType(e.target.value as keyof typeof EVALUATION_CRITERIA);
+                      setSamplingNotes({});
+                    }}
+                    className="w-full px-3 py-2 border rounded-md"
+                  >
+                    <option value="ampoule">앰플</option>
+                    <option value="toner_pad">토너패드</option>
+                    <option value="cream_lotion">크림&로션</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <Label>브랜드</Label>
+                <select
+                  value={samplingBrand}
+                  onChange={(e) => setSamplingBrand(e.target.value)}
+                  className="w-full px-3 py-2 border rounded-md"
+                >
+                  <option value="howpapa">하우파파</option>
+                  <option value="nucio">누씨오</option>
+                </select>
+              </div>
+
+              {/* 품평 기준 표 */}
+              <div>
+                <h4 className="font-semibold mb-3">품평 기준 및 항목별 메모</h4>
+                <div className="border rounded-lg overflow-hidden">
+                  <table className="w-full">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">평가 항목</th>
+                        <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">메모</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {EVALUATION_CRITERIA[samplingType].map((item) => (
+                        <tr key={item.key} className="border-t">
+                          <td className="px-4 py-3 text-sm font-medium text-gray-700">
+                            {item.label}
+                          </td>
+                          <td className="px-4 py-3">
+                            <Input
+                              value={samplingNotes[item.key] || ''}
+                              onChange={(e) => setSamplingNotes(prev => ({ ...prev, [item.key]: e.target.value }))}
+                              placeholder="한 줄 메모를 입력하세요"
+                              className="w-full"
+                            />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* 유지/개선 요청 사항 */}
+              <div>
+                <Label>유지/개선 요청 사항</Label>
+                <Textarea
+                  value={samplingRequest}
+                  onChange={(e) => setSamplingRequest(e.target.value)}
+                  placeholder="샘플에 대한 전반적인 유지/개선 요청 사항을 작성하세요"
+                  rows={4}
+                />
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={resetSamplingForm}>
+                취소
+              </Button>
+              <Button
+                onClick={handleSamplingSubmit}
+                disabled={!samplingName.trim()}
+                className="bg-[#93C572] hover:bg-[#7FB05B]"
+              >
+                저장
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
         {/* 평가 등록/수정 폼 */}
         <Dialog open={showEvaluationForm} onOpenChange={(open) => !open && resetForm()}>
           <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
@@ -639,11 +805,12 @@ export default function Samples() {
 
         {/* 탭 */}        <Tabs value={selectedType} onValueChange={(value) => setSelectedType(value as any)} className="w-full">
           <div className="flex justify-between items-center mb-4">
-            <TabsList className="grid grid-cols-5 w-full max-w-2xl">
+            <TabsList className="grid grid-cols-6 w-full max-w-3xl">
               <TabsTrigger value="all">전체</TabsTrigger>
               <TabsTrigger value="ampoule">앰플</TabsTrigger>
               <TabsTrigger value="toner_pad">토너패드</TabsTrigger>
               <TabsTrigger value="cream_lotion">크림&로션</TabsTrigger>
+              <TabsTrigger value="sampling">샘플링 리뷰</TabsTrigger>
               <TabsTrigger value="evaluators">평가자 관리</TabsTrigger>
             </TabsList>
           </div>
@@ -867,6 +1034,90 @@ export default function Samples() {
                 })}
               </div>
             )}
+          </TabsContent>
+
+          {/* 샘플링 리뷰 탭 */}
+          <TabsContent value="sampling">
+            <div className="space-y-4">
+              <div className="flex justify-between items-center">
+                <div>
+                  <h3 className="text-lg font-semibold">샘플링 품평 기준</h3>
+                  <p className="text-sm text-gray-600">샘플에 대한 품평 기준과 메모를 작성합니다</p>
+                </div>
+                <Button
+                  onClick={() => setShowSamplingForm(true)}
+                  className="bg-[#93C572] hover:bg-[#7FB05B]"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  새 샘플링 리뷰 작성
+                </Button>
+              </div>
+
+              {/* 샘플링 리뷰 목록 */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {samplingReviews.map((review: any) => (
+                  <Card key={review.id}>
+                    <CardHeader>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <CardTitle>{review.sample_name}</CardTitle>
+                          <div className="flex items-center gap-2 mt-2">
+                            <Badge className={SAMPLE_TYPES[review.sample_type as keyof typeof SAMPLE_TYPES].color}>
+                              {SAMPLE_TYPES[review.sample_type as keyof typeof SAMPLE_TYPES].label}
+                            </Badge>
+                            <Badge variant="outline">
+                              {review.brand === 'howpapa' ? '하우파파' : '누씨오'}
+                            </Badge>
+                          </div>
+                        </div>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-3">
+                        {/* 평가 항목별 메모 */}
+                        <div>
+                          <h4 className="font-semibold text-sm mb-2">평가 항목별 메모</h4>
+                          <div className="space-y-1">
+                            {EVALUATION_CRITERIA[review.sample_type as keyof typeof EVALUATION_CRITERIA].map((item) => (
+                              review.notes[item.key] && (
+                                <div key={item.key} className="text-sm">
+                                  <span className="font-medium text-gray-700">{item.label}:</span>
+                                  <span className="text-gray-600 ml-2">{review.notes[item.key]}</span>
+                                </div>
+                              )
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* 유지/개선 요청 사항 */}
+                        {review.improvement_request && (
+                          <div>
+                            <h4 className="font-semibold text-sm mb-1">유지/개선 요청 사항</h4>
+                            <p className="text-sm text-gray-600 bg-gray-50 p-2 rounded">
+                              {review.improvement_request}
+                            </p>
+                          </div>
+                        )}
+
+                        <div className="text-xs text-gray-500 pt-2 border-t">
+                          {new Date(review.created_at).toLocaleString()}
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+
+              {samplingReviews.length === 0 && (
+                <Card>
+                  <CardContent className="py-12 text-center text-gray-500">
+                    <ClipboardList className="w-12 h-12 mx-auto mb-4 text-gray-400" />
+                    <p>등록된 샘플링 리뷰가 없습니다.</p>
+                    <p className="text-sm mt-1">새 샘플링 리뷰를 작성해보세요.</p>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
           </TabsContent>
 
           {/* 평가자 관리 탭 */}
