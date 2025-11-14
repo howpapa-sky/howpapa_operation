@@ -5,10 +5,12 @@ import {
   FileText,
   KeyRound,
   ChevronDown,
-  ChevronRight
+  ChevronRight,
+  Shield
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
+import { usePermissions } from "@/hooks/usePermissions";
 
 interface SidebarProps {
   className?: string;
@@ -16,6 +18,7 @@ interface SidebarProps {
 
 export default function Sidebar({ className }: SidebarProps) {
   const [location] = useLocation();
+  const { hasPermission, loading } = usePermissions();
   const [expandedMenus, setExpandedMenus] = useState<Record<string, boolean>>({
     dashboard: true,
     samples: true,
@@ -63,6 +66,12 @@ export default function Sidebar({ className }: SidebarProps) {
       icon: KeyRound,
       path: '/account-info',
     },
+    {
+      key: 'user_management',
+      label: '사용자 권한',
+      icon: Shield,
+      path: '/user-management',
+    },
   ];
 
   return (
@@ -81,7 +90,14 @@ export default function Sidebar({ className }: SidebarProps) {
         </Link>
 
         <nav className="space-y-1">
-          {menuItems.map((item) => (
+          {menuItems.map((item) => {
+            // 권한 체크
+            const menuKey = item.key === 'user_management' ? 'admin' : item.key;
+            if (!loading && !hasPermission(menuKey, 'view')) {
+              return null;
+            }
+            
+            return (
             <div key={item.key}>
               {item.subItems ? (
                 <>
@@ -134,7 +150,8 @@ export default function Sidebar({ className }: SidebarProps) {
                 </Link>
               )}
             </div>
-          ))}
+            );
+          })}
         </nav>
       </div>
     </aside>
