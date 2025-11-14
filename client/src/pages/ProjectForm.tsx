@@ -164,37 +164,52 @@ export default function ProjectForm() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#F0F4F8] to-[#E1E7EF] p-6">
+    <div className="min-h-screen bg-gradient-to-br from-[#F0F4F8] to-[#E1E7EF] p-3 sm:p-6">
       <div className="max-w-4xl mx-auto">
-        <div className="flex items-center gap-4 mb-6">
-          <Button variant="ghost" onClick={() => navigate("/projects")}>
+        {/* 헤더 - 모바일 최적화 */}
+        <div className="flex items-center gap-2 sm:gap-4 mb-4 sm:mb-6">
+          <Button 
+            variant="ghost" 
+            size="sm"
+            onClick={() => navigate("/projects")}
+            className="h-9 w-9 p-0 sm:h-10 sm:w-auto sm:px-4"
+          >
             <ArrowLeft className="w-4 h-4" />
+            <span className="hidden sm:inline ml-2">뒤로</span>
           </Button>
-          <h1 className="text-3xl font-bold text-[#2C3E50]">
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-[#2C3E50]">
             {isEdit ? "프로젝트 수정" : "프로젝트 등록"}
           </h1>
         </div>
 
-        <Card className="p-6">
-          <form onSubmit={handleSubmit} className="space-y-6">
+        <Card className="p-4 sm:p-6">
+          <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
+            {/* 프로젝트 이름 */}
             <div className="space-y-2">
-              <Label htmlFor="name">프로젝트 이름 *</Label>
+              <Label htmlFor="name" className="text-sm sm:text-base">
+                프로젝트 이름 <span className="text-red-500">*</span>
+              </Label>
               <Input
                 id="name"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 required
+                className="text-base"
+                placeholder="프로젝트 이름을 입력하세요"
               />
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* 프로젝트 유형, 상태, 우선순위 - 모바일에서 세로 배치 */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="type">프로젝트 유형 *</Label>
+                <Label htmlFor="type" className="text-sm sm:text-base">
+                  프로젝트 유형 <span className="text-red-500">*</span>
+                </Label>
                 <select
                   id="type"
                   value={formData.type}
                   onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-md"
+                  className="w-full px-3 py-2 text-base border rounded-md bg-white"
                   required
                 >
                   {PROJECT_TYPES.map(({ value, label }) => (
@@ -204,12 +219,14 @@ export default function ProjectForm() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="status">진행 상태 *</Label>
+                <Label htmlFor="status" className="text-sm sm:text-base">
+                  진행 상태 <span className="text-red-500">*</span>
+                </Label>
                 <select
                   id="status"
                   value={formData.status}
                   onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-md"
+                  className="w-full px-3 py-2 text-base border rounded-md bg-white"
                   required
                 >
                   {PROJECT_STATUS.map(({ value, label }) => (
@@ -219,12 +236,14 @@ export default function ProjectForm() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="priority">우선순위 *</Label>
+                <Label htmlFor="priority" className="text-sm sm:text-base">
+                  우선순위 <span className="text-red-500">*</span>
+                </Label>
                 <select
                   id="priority"
                   value={formData.priority}
                   onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-md"
+                  className="w-full px-3 py-2 text-base border rounded-md bg-white"
                   required
                 >
                   {PRIORITIES.map(({ value, label }) => (
@@ -234,88 +253,108 @@ export default function ProjectForm() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* 날짜 입력 - 모바일에서 세로 배치 */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="start_date">시작일</Label>
+                <Label htmlFor="start_date" className="text-sm sm:text-base">시작일</Label>
                 <Input
                   id="start_date"
                   type="date"
                   value={formData.start_date}
                   onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
+                  className="text-base"
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="target_date">목표일</Label>
+                <Label htmlFor="target_date" className="text-sm sm:text-base">목표일</Label>
                 <Input
                   id="target_date"
                   type="date"
                   value={formData.target_date}
                   onChange={(e) => setFormData({ ...formData, target_date: e.target.value })}
+                  className="text-base"
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="completed_date">완료일</Label>
+                <Label htmlFor="completed_date" className="text-sm sm:text-base">완료일</Label>
                 <Input
                   id="completed_date"
                   type="date"
                   value={formData.completed_date}
                   onChange={(e) => setFormData({ ...formData, completed_date: e.target.value })}
+                  className="text-base"
                 />
               </div>
             </div>
 
+            {/* 브랜드, 제품명, 제조사 - 조건부 표시 */}
             {(formData.type === "sampling" || formData.type === "detail_page") && (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="brand">브랜드</Label>
+                  <Label htmlFor="brand" className="text-sm sm:text-base">브랜드</Label>
                   <Input
                     id="brand"
                     value={formData.brand}
                     onChange={(e) => setFormData({ ...formData, brand: e.target.value })}
+                    className="text-base"
+                    placeholder="브랜드명"
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="product_name">제품명</Label>
+                  <Label htmlFor="product_name" className="text-sm sm:text-base">제품명</Label>
                   <Input
                     id="product_name"
                     value={formData.product_name}
                     onChange={(e) => setFormData({ ...formData, product_name: e.target.value })}
+                    className="text-base"
+                    placeholder="제품명"
                   />
                 </div>
 
                 {formData.type === "sampling" && (
                   <div className="space-y-2">
-                    <Label htmlFor="manufacturer">제조사</Label>
+                    <Label htmlFor="manufacturer" className="text-sm sm:text-base">제조사</Label>
                     <Input
                       id="manufacturer"
                       value={formData.manufacturer}
                       onChange={(e) => setFormData({ ...formData, manufacturer: e.target.value })}
+                      className="text-base"
+                      placeholder="제조사명"
                     />
                   </div>
                 )}
               </div>
             )}
 
+            {/* 설명 */}
             <div className="space-y-2">
-              <Label htmlFor="description">설명</Label>
+              <Label htmlFor="description" className="text-sm sm:text-base">설명</Label>
               <Textarea
                 id="description"
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                 rows={4}
+                className="text-base resize-none"
+                placeholder="프로젝트 설명을 입력하세요"
               />
             </div>
 
-            <div className="flex justify-end gap-4">
-              <Button type="button" variant="outline" onClick={() => navigate("/projects")}>
+            {/* 버튼 - 모바일에서 전체 너비 */}
+            <div className="flex flex-col-reverse sm:flex-row justify-end gap-3 sm:gap-4 pt-2">
+              <Button 
+                type="button" 
+                variant="outline" 
+                onClick={() => navigate("/projects")}
+                className="w-full sm:w-auto text-base h-11"
+              >
                 취소
               </Button>
               <Button 
                 type="submit" 
-                className="bg-[#93C572] hover:bg-[#7FB05B]"
+                className="w-full sm:w-auto bg-[#93C572] hover:bg-[#7FB05B] text-base h-11"
                 disabled={createMutation.isPending || updateMutation.isPending}
               >
                 <Save className="w-4 h-4 mr-2" />
