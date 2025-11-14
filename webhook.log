@@ -5,3 +5,5 @@ nohup: ignoring input
 🧪 테스트 URL: http://localhost:3001/webhook/test
 ✅ Access Token 발급 성공
 ✅ 채널 메시지 전송 성공: 556d52cf-b97d-0496-ca54-ad035999ea4a
+📨 웹훅 수신: { type: 'INSERT', record: 'test-123' }
+✅ 채널 메시지 전송 성공: 556d52cf-b97d-0496-ca54-ad035999ea4a
