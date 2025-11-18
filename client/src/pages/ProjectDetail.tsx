@@ -6,6 +6,8 @@ import { Card } from "@/components/ui/card";
 import { useSupabaseAuth } from "@/hooks/useSupabaseAuth";
 import { useLocation, useRoute } from "wouter";
 import { Edit, Trash2, Calendar, AlertCircle, Users } from "lucide-react";
+import { TaskList } from "@/components/TaskList";
+import { CommentSection } from "@/components/CommentSection";
 
 const PROJECT_TYPES = {
   sampling: "샘플링",
@@ -172,6 +174,16 @@ export default function ProjectDetail() {
                   </div>
                 )}
               </div>
+            </Card>
+
+            {/* 작업 목록 섹션 */}
+            <Card className="p-6 bg-white/80 backdrop-blur-sm border-2 border-[#93C572]/20">
+              <TaskList projectId={parseInt(projectId || '0')} />
+            </Card>
+
+            {/* 댓글 섹션 */}
+            <Card className="p-6 bg-white/80 backdrop-blur-sm border-2 border-[#93C572]/20">
+              <CommentSection entityType="project" entityId={projectId || ''} />
             </Card>
           </div>
 
