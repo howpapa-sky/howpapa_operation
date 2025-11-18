@@ -65,7 +65,7 @@ export default function Projects() {
     }
   });
 
-  const canEdit = user && (user.role === 'admin' || user.role === 'manager');
+  const canEdit = user && (user.role === 'admin' || user.role === 'manager' || user.role === 'super_admin');
 
   const filteredProjects = projects.filter((project: any) => {
     if (selectedType && project.type !== selectedType) return false;

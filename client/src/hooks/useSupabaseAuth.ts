@@ -12,7 +12,7 @@ export function useSupabaseAuth() {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       if (session?.user) {
-        fetchUserProfile(session.user.id);
+        fetchUserProfile(session.user.id, session.user.email || '');
       } else {
         setLoading(false);
       }
@@ -24,7 +24,7 @@ export function useSupabaseAuth() {
     } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       if (session?.user) {
-        fetchUserProfile(session.user.id);
+        fetchUserProfile(session.user.id, session.user.email || '');
       } else {
         setUser(null);
         setLoading(false);
@@ -34,7 +34,7 @@ export function useSupabaseAuth() {
     return () => subscription.unsubscribe();
   }, []);
 
-  const fetchUserProfile = async (userId: string) => {
+  const fetchUserProfile = async (userId: string, userEmail: string) => {
     try {
       const { data, error } = await supabase
         .from('users')
@@ -42,10 +42,33 @@ export function useSupabaseAuth() {
         .eq('id', userId)
         .single();
 
-      if (error) throw error;
-      setUser(data);
+      if (error) {
+        console.error('Error fetching user profile:', error);
+        // 프로필이 없는 경우 기본 사용자 객체 생성
+        setUser({
+          id: userId,
+          email: userEmail,
+          name: userEmail.split('@')[0],
+          role: 'user',
+          created_at: new Date().toISOString(),
+        });
+      } else {
+        // role이 없는 경우 기본값 설정
+        setUser({
+          ...data,
+          role: data.role || 'user',
+        });
+      }
     } catch (error) {
       console.error('Error fetching user profile:', error);
+      // 오류 발생 시에도 기본 사용자 객체 생성
+      setUser({
+        id: userId,
+        email: userEmail,
+        name: userEmail.split('@')[0],
+        role: 'user',
+        created_at: new Date().toISOString(),
+      });
     } finally {
       setLoading(false);
     }
@@ -72,12 +95,16 @@ export function useSupabaseAuth() {
 
     if (data.user && !error) {
       // Create user profile
-      await supabase.from('users').insert({
-        id: data.user.id,
-        email: data.user.email,
-        name,
-        role: 'user',
-      });
+      try {
+        await supabase.from('users').insert({
+          id: data.user.id,
+          email: data.user.email,
+          name,
+          role: 'user',
+        });
+      } catch (insertError) {
+        console.error('Error creating user profile:', insertError);
+      }
     }
 
     return { data, error };

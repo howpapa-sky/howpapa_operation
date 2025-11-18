@@ -116,6 +116,7 @@ export default function ProjectForm() {
       navigate("/projects");
     },
     onError: (error: any) => {
+      console.error('프로젝트 등록 오류:', error);
       toast.error(error.message || "프로젝트 등록에 실패했습니다");
     },
   });
@@ -150,6 +151,7 @@ export default function ProjectForm() {
       navigate("/projects");
     },
     onError: (error: any) => {
+      console.error('프로젝트 수정 오류:', error);
       toast.error(error.message || "프로젝트 수정에 실패했습니다");
     },
   });
