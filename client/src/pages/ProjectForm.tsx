@@ -158,10 +158,19 @@ export default function ProjectForm() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // 빈 날짜 필드를 null로 변환
+    const sanitizedData = {
+      ...formData,
+      start_date: formData.start_date || null,
+      target_date: formData.target_date || null,
+      completion_date: formData.completion_date || null,
+    };
+    
     if (isEdit) {
-      updateMutation.mutate(formData);
+      updateMutation.mutate(sanitizedData);
     } else {
-      createMutation.mutate(formData);
+      createMutation.mutate(sanitizedData);
     }
   };
 
