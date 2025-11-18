@@ -10,11 +10,22 @@ import { Link, useLocation } from "wouter";
 import { Plus, Calendar, AlertCircle, CheckCircle, Clock, Pause, TrendingUp, Package, FileText, Users, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 
-const PROJECT_TYPES = {
-  sampling: { label: "샘플링", icon: Package, color: "bg-purple-50 text-purple-700 border-purple-200" },
-  detail_page: { label: "상세페이지 제작", icon: FileText, color: "bg-blue-50 text-blue-700 border-blue-200" },
-  new_product: { label: "신제품 출시", icon: TrendingUp, color: "bg-green-50 text-green-700 border-green-200" },
-  influencer: { label: "인플루언서 협업", icon: Users, color: "bg-pink-50 text-pink-700 border-pink-200" },
+import { MAIN_CATEGORIES, getCategoryPath } from "@/types/projectCategories";
+
+const CATEGORY_ICONS: Record<string, any> = {
+  '인플루언서 협업': Users,
+  '발주': Package,
+  '제품 출시': TrendingUp,
+  '상세페이지 제작': FileText,
+  '기타': AlertCircle,
+};
+
+const CATEGORY_COLORS: Record<string, string> = {
+  '인플루언서 협업': "bg-pink-50 text-pink-700 border-pink-200",
+  '발주': "bg-purple-50 text-purple-700 border-purple-200",
+  '제품 출시': "bg-green-50 text-green-700 border-green-200",
+  '상세페이지 제작': "bg-blue-50 text-blue-700 border-blue-200",
+  '기타': "bg-gray-50 text-gray-700 border-gray-200",
 };
 
 const PROJECT_STATUS = {
@@ -41,16 +52,16 @@ const PRIORITY_LABELS = {
 export default function Projects() {
   const [location] = useLocation();
   const { user } = useSupabaseAuth();
-  const [selectedType, setSelectedType] = useState<string | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
   const [selectedBrand, setSelectedBrand] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
-  // URL 쿼리 파라미터에서 type 추출
+  // URL 쿼리 파라미터에서 category 추출
   useState(() => {
     const params = new URLSearchParams(location.split('?')[1]);
-    const typeParam = params.get('type');
-    if (typeParam) setSelectedType(typeParam);
+    const categoryParam = params.get('category');
+    if (categoryParam) setSelectedCategory(categoryParam);
   });
 
   const { data: projects = [], isLoading, error } = useQuery({
@@ -68,7 +79,7 @@ export default function Projects() {
   const canEdit = user && (user.role === 'admin' || user.role === 'manager' || user.role === 'super_admin');
 
   const filteredProjects = projects.filter((project: any) => {
-    if (selectedType && project.type !== selectedType) return false;
+    if (selectedCategory && project.category_main !== selectedCategory) return false;
     if (selectedStatus && project.status !== selectedStatus) return false;
     if (selectedBrand && project.brand !== selectedBrand) return false;
     if (searchQuery && !project.name.toLowerCase().includes(searchQuery.toLowerCase())) return false;
@@ -213,31 +224,34 @@ export default function Projects() {
               </div>
             </div>
 
-            {/* 프로젝트 유형 필터 */}
+            {/* 프로젝트 분류 필터 */}
             <div>
-              <div className="text-xs sm:text-sm font-medium text-gray-700 mb-2">프로젝트 유형</div>
+              <div className="text-xs sm:text-sm font-medium text-gray-700 mb-2">프로젝트 분류</div>
               <div className="flex gap-2 flex-wrap">
                 <Button
-                  variant={selectedType === null ? "default" : "outline"}
+                  variant={selectedCategory === null ? "default" : "outline"}
                   size="sm"
-                  onClick={() => setSelectedType(null)}
-                  className={`text-xs sm:text-sm h-8 sm:h-9 ${selectedType === null ? "bg-[#93C572] hover:bg-[#7FB05B]" : ""}`}
+                  onClick={() => setSelectedCategory(null)}
+                  className={`text-xs sm:text-sm h-8 sm:h-9 ${selectedCategory === null ? "bg-[#93C572] hover:bg-[#7FB05B]" : ""}`}
                 >
                   전체
                 </Button>
-                {Object.entries(PROJECT_TYPES).map(([key, { label, icon: Icon }]) => (
-                  <Button
-                    key={key}
-                    variant={selectedType === key ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setSelectedType(key)}
-                    className={`text-xs sm:text-sm h-8 sm:h-9 ${selectedType === key ? "bg-[#93C572] hover:bg-[#7FB05B]" : ""}`}
-                  >
-                    <Icon className="w-3 h-3 sm:w-4 sm:h-4 mr-1" />
-                    <span className="hidden sm:inline">{label}</span>
-                    <span className="sm:hidden">{label.split(' ')[0]}</span>
-                  </Button>
-                ))}
+                {MAIN_CATEGORIES.map((category) => {
+                  const Icon = CATEGORY_ICONS[category] || Package;
+                  return (
+                    <Button
+                      key={category}
+                      variant={selectedCategory === category ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setSelectedCategory(category)}
+                      className={`text-xs sm:text-sm h-8 sm:h-9 ${selectedCategory === category ? "bg-[#93C572] hover:bg-[#7FB05B]" : ""}`}
+                    >
+                      <Icon className="w-3 h-3 sm:w-4 sm:h-4 mr-1" />
+                      <span className="hidden sm:inline">{category}</span>
+                      <span className="sm:hidden">{category.split(' ')[0]}</span>
+                    </Button>
+                  );
+                })}
               </div>
             </div>
 
@@ -269,8 +283,13 @@ export default function Projects() {
             const statusColor = PROJECT_STATUS[project.status as keyof typeof PROJECT_STATUS]?.color || "text-gray-500";
             const statusBgColor = PROJECT_STATUS[project.status as keyof typeof PROJECT_STATUS]?.bgColor || "bg-gray-50";
             const dday = getDdayText(project.target_date);
-            const TypeIcon = PROJECT_TYPES[project.type as keyof typeof PROJECT_TYPES]?.icon || Package;
-            const typeColor = PROJECT_TYPES[project.type as keyof typeof PROJECT_TYPES]?.color || "bg-gray-50";
+            const categoryPath = getCategoryPath({
+              main: project.category_main,
+              sub: project.category_sub,
+              detail: project.category_detail,
+            });
+            const CategoryIcon = CATEGORY_ICONS[project.category_main] || Package;
+            const categoryColor = CATEGORY_COLORS[project.category_main] || "bg-gray-50 text-gray-700 border-gray-200";
 
             return (
               <Link key={project.id} href={`/projects/${project.id}`}>
@@ -278,10 +297,10 @@ export default function Projects() {
                   <div className="flex justify-between items-start mb-3 sm:mb-4">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-2">
-                        <Badge className={`${typeColor} border text-xs`}>
-                          <TypeIcon className="w-3 h-3 mr-1" />
-                          <span className="hidden sm:inline">{PROJECT_TYPES[project.type as keyof typeof PROJECT_TYPES]?.label}</span>
-                          <span className="sm:hidden">{PROJECT_TYPES[project.type as keyof typeof PROJECT_TYPES]?.label.split(' ')[0]}</span>
+                        <Badge className={`${categoryColor} border text-xs`}>
+                          <CategoryIcon className="w-3 h-3 mr-1" />
+                          <span className="hidden sm:inline">{categoryPath}</span>
+                          <span className="sm:hidden">{project.category_main.split(' ')[0]}</span>
                         </Badge>
                       </div>
                       <h3 className="font-bold text-base sm:text-lg mb-1 text-[#2C3E50] line-clamp-2">{project.name}</h3>
