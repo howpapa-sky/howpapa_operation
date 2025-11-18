@@ -164,7 +164,7 @@ export default function ProjectForm() {
       ...formData,
       start_date: formData.start_date || null,
       target_date: formData.target_date || null,
-      completion_date: formData.completion_date || null,
+      completed_date: formData.completed_date || null,
     };
     
     if (isEdit) {
