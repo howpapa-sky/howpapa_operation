@@ -1,5 +1,8 @@
 import { useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { useTasks, useCreateTask, useUpdateTask, useDeleteTask } from '@/hooks/useTasks';
+import { TaskSchema, type TaskFormData } from '@/schemas/taskSchema';
 import { Task, TASK_STATUS_LABELS, TASK_STATUS_COLORS, TASK_PRIORITY_LABELS, TASK_PRIORITY_COLORS } from '@/types/task';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -24,28 +27,33 @@ export function TaskList({ projectId }: TaskListProps) {
   
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
-  const [newTaskTitle, setNewTaskTitle] = useState('');
-  const [newTaskDescription, setNewTaskDescription] = useState('');
-  const [newTaskPriority, setNewTaskPriority] = useState<'low' | 'medium' | 'high' | 'urgent'>('medium');
-  const [newTaskDueDate, setNewTaskDueDate] = useState('');
-
-  const handleCreateTask = async () => {
-    if (!newTaskTitle.trim()) return;
-    
-    await createTask.mutateAsync({
-      project_id: projectId,
-      title: newTaskTitle,
-      description: newTaskDescription || undefined,
-      priority: newTaskPriority,
-      due_date: newTaskDueDate || undefined,
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors, isSubmitting },
+  } = useForm<TaskFormData>({
+    resolver: zodResolver(TaskSchema),
+    defaultValues: {
+      title: '',
+      description: '',
+      priority: 'medium',
       status: 'todo',
-    });
-    
-    setNewTaskTitle('');
-    setNewTaskDescription('');
-    setNewTaskPriority('medium');
-    setNewTaskDueDate('');
-    setIsCreateDialogOpen(false);
+    },
+  });
+
+  const onSubmit = async (data: TaskFormData) => {
+    try {
+      await createTask.mutateAsync({
+        project_id: projectId,
+        ...data,
+      });
+      
+      reset();
+      setIsCreateDialogOpen(false);
+    } catch (error) {
+      console.error('작업 생성 실패:', error);
+    }
   };
 
   const handleStatusChange = async (taskId: string, newStatus: Task['status']) => {
@@ -112,61 +120,68 @@ export function TaskList({ projectId }: TaskListProps) {
             <DialogHeader>
               <DialogTitle>새 작업 추가</DialogTitle>
             </DialogHeader>
-            <div className="space-y-4 mt-4">
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 mt-4">
               <div>
                 <label className="text-sm font-medium mb-1 block">작업 제목</label>
                 <Input
-                  value={newTaskTitle}
-                  onChange={(e) => setNewTaskTitle(e.target.value)}
+                  {...register('title')}
                   placeholder="작업 제목을 입력하세요"
                 />
+                {errors.title && (
+                  <p className="text-sm text-red-600 mt-1">{errors.title.message}</p>
+                )}
               </div>
               <div>
                 <label className="text-sm font-medium mb-1 block">설명</label>
                 <Textarea
-                  value={newTaskDescription}
-                  onChange={(e) => setNewTaskDescription(e.target.value)}
+                  {...register('description')}
                   placeholder="작업 설명 (선택사항)"
                   rows={3}
                 />
+                {errors.description && (
+                  <p className="text-sm text-red-600 mt-1">{errors.description.message}</p>
+                )}
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-sm font-medium mb-1 block">우선순위</label>
-                  <Select value={newTaskPriority} onValueChange={(value: any) => setNewTaskPriority(value)}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="low">낮음</SelectItem>
-                      <SelectItem value="medium">보통</SelectItem>
-                      <SelectItem value="high">높음</SelectItem>
-                      <SelectItem value="urgent">긴급</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <select
+                    {...register('priority')}
+                    className="w-full h-10 px-3 border rounded-md"
+                  >
+                    <option value="low">낮음</option>
+                    <option value="medium">보통</option>
+                    <option value="high">높음</option>
+                    <option value="urgent">긴급</option>
+                  </select>
+                  {errors.priority && (
+                    <p className="text-sm text-red-600 mt-1">{errors.priority.message}</p>
+                  )}
                 </div>
                 <div>
                   <label className="text-sm font-medium mb-1 block">마감일</label>
                   <Input
-                    type="date"
-                    value={newTaskDueDate}
-                    onChange={(e) => setNewTaskDueDate(e.target.value)}
+                    type="datetime-local"
+                    {...register('due_date')}
                   />
+                  {errors.due_date && (
+                    <p className="text-sm text-red-600 mt-1">{errors.due_date.message}</p>
+                  )}
                 </div>
               </div>
               <div className="flex gap-2 justify-end">
-                <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
+                <Button type="button" variant="outline" onClick={() => { reset(); setIsCreateDialogOpen(false); }}>
                   취소
                 </Button>
                 <Button
-                  onClick={handleCreateTask}
-                  disabled={!newTaskTitle.trim()}
+                  type="submit"
+                  disabled={isSubmitting}
                   className="bg-[#93C572] hover:bg-[#7FB05B]"
                 >
-                  생성
+                  {isSubmitting ? '생성 중...' : '생성'}
                 </Button>
               </div>
-            </div>
+            </form>
           </DialogContent>
         </Dialog>
       </div>
