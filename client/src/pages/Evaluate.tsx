@@ -108,7 +108,8 @@ export default function Evaluate() {
   };
 
   const getCriteriaByCategory = (category: string) => {
-    return criteria?.filter(c => c.category === category) || [];
+    if (!criteria || !Array.isArray(criteria)) return [];
+    return criteria.filter(c => c.category === category);
   };
 
   const categories = ["앰플", "시트", "피부효과"];
@@ -175,11 +176,13 @@ export default function Evaluate() {
 
             <div className="space-y-4">
               <h3 className="font-semibold">평가 항목 추가</h3>
-              {categories.map((category) => (
+              {categories.map((category) => {
+                const categoryCriteria = getCriteriaByCategory(category);
+                return (
                 <div key={category} className="border rounded-lg p-4">
                   <h4 className="font-medium mb-3">{category}</h4>
                   <div className="flex flex-wrap gap-2">
-                    {getCriteriaByCategory(category).map((criterion) => (
+                    {categoryCriteria.length > 0 ? categoryCriteria.map((criterion) => (
                       <Button
                         key={criterion.id}
                         type="button"
@@ -190,10 +193,13 @@ export default function Evaluate() {
                       >
                         + {criterion.item}
                       </Button>
-                    ))}
+                    )) : (
+                      <p className="text-sm text-gray-500">평가 항목이 없습니다.</p>
+                    )}
                   </div>
                 </div>
-              ))}
+              );
+              })}
             </div>
           </CardContent>
         </Card>
