@@ -93,7 +93,7 @@ export default function Samples() {
         .select('*')
         .order('created_at', { ascending: false });
       if (error) throw error;
-      return data;
+      return data || [];
     }
   });
 
@@ -105,7 +105,7 @@ export default function Samples() {
         .select('*')
         .order('name');
       if (error) throw error;
-      return data;
+      return data || [];
     }
   });
 
@@ -117,7 +117,7 @@ export default function Samples() {
         .select('*')
         .order('created_at', { ascending: false });
       if (error) throw error;
-      return data;
+      return data || [];
     }
   });
 
@@ -310,7 +310,7 @@ export default function Samples() {
   // 평균 점수 계산
   const averageScores = Object.entries(groupedBySampleName).map(([name, evals]: [string, any]) => {
     const sampleType = evals[0].sample_type;
-    const criteria = EVALUATION_CRITERIA[sampleType as keyof typeof EVALUATION_CRITERIA];
+    const criteria = EVALUATION_CRITERIA[sampleType as keyof typeof EVALUATION_CRITERIA] || [];
     const avgScores: any = {};
     
     criteria.forEach(item => {
@@ -334,7 +334,7 @@ export default function Samples() {
   });
 
   const getRadarData = (evaluation: any) => {
-    const criteria = EVALUATION_CRITERIA[evaluation.sample_type as keyof typeof EVALUATION_CRITERIA];
+    const criteria = EVALUATION_CRITERIA[evaluation.sample_type as keyof typeof EVALUATION_CRITERIA] || [];
     return criteria.map(item => ({
       subject: item.label,
       score: evaluation.scores?.[item.key] || 0,
@@ -346,7 +346,7 @@ export default function Samples() {
     const sampleEvals = groupedBySampleName[sampleName];
     if (!sampleEvals || sampleEvals.length === 0) return [];
 
-    const criteria = EVALUATION_CRITERIA[sampleEvals[0].sample_type as keyof typeof EVALUATION_CRITERIA];
+    const criteria = EVALUATION_CRITERIA[sampleEvals[0].sample_type as keyof typeof EVALUATION_CRITERIA] || [];
     
     return criteria.map(item => {
       const dataPoint: any = { criterion: item.label };
@@ -360,7 +360,7 @@ export default function Samples() {
 
   const exportToExcel = () => {
     const exportData = filteredEvaluations.map((evaluation: any) => {
-      const criteria = EVALUATION_CRITERIA[evaluation.sample_type as keyof typeof EVALUATION_CRITERIA];
+      const criteria = EVALUATION_CRITERIA[evaluation.sample_type as keyof typeof EVALUATION_CRITERIA] || [];
       const row: any = {
         '샘플명': evaluation.sample_name,
         '브랜드': evaluation.brand === 'howpapa' ? '하우파파' : '누씨오',
